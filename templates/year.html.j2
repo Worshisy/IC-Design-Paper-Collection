@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ conference_name }} – {{ year }}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f5f5f7;
+        --bg-alt: #ffffff;
+        --text: #111827;
+        --accent: #2563eb;
+        --border: #d1d5db;
+        --muted: #6b7280;
+      }
+
+      /* Dark theme overrides */
+      body.theme-dark {
+        --bg: #020617;
+        --bg-alt: #020617;
+        --text: #e5e7eb;
+        --accent: #38bdf8;
+        --border: #1f2937;
+        --muted: #9ca3af;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 1.2rem;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.6rem;
+      }
+
+      .top-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        font-size: 0.85rem;
+        align-items: baseline;
+      }
+
+      .summary-panel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        align-items: center;
+        padding: 0.6rem 0.8rem;
+        border-radius: 0.6rem;
+        background: var(--bg-alt);
+        border: 1px solid var(--border);
+        margin-bottom: 0.5rem;
+      }
+
+      .summary-item {
+        font-size: 0.85rem;
+      }
+      .summary-item strong {
+        font-size: 1rem;
+      }
+
+      .session-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        font-size: 0.75rem;
+      }
+
+      .session-chip {
+        padding: 0.1rem 0.4rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #f9fafb;
+        white-space: nowrap;
+      }
+      .session-chip .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          monospace;
+        font-size: 0.75rem;
+      }
+
+      .search-bar {
+        margin: 0.4rem 0 0.6rem;
+      }
+
+      .search-input {
+        width: 100%;
+        max-width: 420px;
+        padding: 0.4rem 0.6rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border);
+        font-size: 0.85rem;
+      }
+      .search-help {
+        font-size: 0.7rem;
+        color: var(--muted);
+        margin-top: 0.2rem;
+      }
+
+      /* ---- TABLE ---- */
+
+      .table-wrapper {
+        border-radius: 0.6rem;
+        border: 1px solid var(--border);
+        overflow: auto;
+        background: var(--bg-alt);
+        max-height: calc(100vh - 180px);
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.8rem;
+        table-layout: fixed;
+      }
+
+      /* Column widths — user can drag the resize handles to adjust. */
+      col.col-paper    { width: 280px; }
+      col.col-abstract { width: auto;  }
+      col.col-authors  { width: 220px; }
+
+      thead {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: var(--bg-alt);
+      }
+
+      th, td {
+        padding: 0.35rem 0.5rem;
+        border-bottom: 1px solid #e5e7eb;
+        vertical-align: top;
+        overflow: hidden;
+      }
+
+      th {
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.78rem;
+        background: var(--bg-alt);
+        white-space: nowrap;
+        position: relative;
+        user-select: none;
+      }
+
+      th.sortable {
+        cursor: pointer;
+      }
+      th.sortable::after {
+        content: " ⇅";
+        font-size: 0.55rem;
+        color: var(--muted);
+      }
+
+      /* Column resize handle */
+      th .resize-handle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 5px;
+        cursor: col-resize;
+        background: transparent;
+      }
+      th .resize-handle:hover,
+      th .resize-handle.active {
+        background: var(--accent);
+        opacity: 0.3;
+      }
+
+      /* Row height: clamp text to ~2 lines by default */
+      td {
+        line-height: 1.35;
+      }
+
+      td .cell-text {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Density / font-size presets */
+      body.density-small table {
+        font-size: 0.75rem;
+      }
+      body.density-medium table {
+        font-size: 0.82rem;
+      }
+      body.density-large table {
+        font-size: 0.9rem;
+      }
+
+      body.density-small td .cell-text {
+        -webkit-line-clamp: 1;
+      }
+      body.density-medium td .cell-text {
+        -webkit-line-clamp: 2;
+      }
+      body.density-large td .cell-text {
+        -webkit-line-clamp: 4;
+      }
+
+      body.density-small td {
+        padding: 0.25rem 0.45rem;
+      }
+      body.density-medium td {
+        padding: 0.35rem 0.5rem;
+      }
+      body.density-large td {
+        padding: 0.45rem 0.6rem;
+      }
+
+      tr:nth-child(even) td {
+        background: #f9fafb;
+      }
+      body.theme-dark tr:nth-child(even) td {
+        background: #020617;
+      }
+      body.theme-dark tr:nth-child(odd) td {
+        background: transparent;
+      }
+
+      /* Session header row */
+      .session-header-row td {
+        background: #eef2ff !important;
+        font-weight: 600;
+        padding: 0.3rem 0.5rem;
+        border-bottom: 2px solid var(--accent);
+      }
+      body.theme-dark .session-header-row td {
+        background: #0b1120 !important;
+        border-bottom-color: #1f2937;
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          monospace;
+        font-size: 0.78rem;
+      }
+
+      .title-cell a {
+        font-weight: 500;
+      }
+
+      td.abstract-cell {
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+
+      td.authors-cell {
+        font-size: 0.75rem;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .density-control {
+        margin: 0.25rem 0 0.6rem;
+        font-size: 0.75rem;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+      }
+      .density-buttons {
+        display: inline-flex;
+        gap: 0.2rem;
+      }
+      .density-btn {
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--bg-alt);
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+      .density-btn.active {
+        background: #e0edff;
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      @media (max-width: 768px) {
+        body { padding: 0.5rem; }
+        .table-wrapper { max-height: none; }
+        table { table-layout: auto; }
+      }
+    </style>
+    <script>
+      window.MathJax = {
+        tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']] },
+        svg: { fontCache: 'global' }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div class="top-links">
+          <a href="index.html">← All years</a>
+          <span class="muted">{{ conference_name }} {{ year }}</span>
+          <button type="button" id="theme-toggle" style="margin-left:auto;font-size:0.75rem;border-radius:999px;padding:0.15rem 0.6rem;border:1px solid var(--border);background:var(--bg-alt);color:var(--muted);cursor:pointer;">
+            Dark mode
+          </button>
+        </div>
+        <h1>{{ conference_name }} {{ year }}</h1>
+
+        <div class="summary-panel">
+          <div class="summary-item">
+            <strong>{{ total_sessions }}</strong> sessions
+          </div>
+          <div class="summary-item">
+            <strong>{{ total_papers }}</strong> papers
+          </div>
+          <div class="summary-item">
+            <div class="muted" style="margin-bottom:0.15rem">Jump to session:</div>
+            <div class="session-chips">
+              {% for s in sessions %}
+              <a class="session-chip" href="#{{ s.anchor_id }}">
+                <span class="code">{{ s.session_number }}</span>
+                {{ s.session_name[:30] }}{% if s.session_name|length > 30 %}…{% endif %}
+                <span class="muted">({{ s.paper_count }})</span>
+              </a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="density-control">
+        <span>Table size:</span>
+        <div class="density-buttons">
+          <button type="button" class="density-btn" data-density="small">Small</button>
+          <button type="button" class="density-btn" data-density="medium">Medium</button>
+          <button type="button" class="density-btn" data-density="large">Large</button>
+        </div>
+      </div>
+
+      <div class="search-bar">
+        <input id="search-input" class="search-input" type="search"
+          placeholder="Filter by title, authors, abstract…" />
+        <div class="search-help">Client-side filter across all visible text.</div>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="papers-table">
+          <colgroup>
+            <col class="col-paper" />
+            <col class="col-abstract" />
+            <col class="col-authors" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="sortable" data-sort-key="paper">Paper<span class="resize-handle"></span></th>
+              <th>Abstract<span class="resize-handle"></span></th>
+              <th class="sortable" data-sort-key="authors">Authors<span class="resize-handle"></span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set ns = namespace(cur_session=None) %}
+            {% for row in rows %}
+            {% if ns.cur_session != row.session_number %}
+            <tr class="session-header-row" id="session-{{ row.session_number }}">
+              <td colspan="3">
+                <span class="mono">Session {{ row.session_number }}</span>
+                &nbsp;{{ row.session_name }}
+              </td>
+            </tr>
+            {% set ns.cur_session = row.session_number %}
+            {% endif %}
+            <tr class="paper-row"
+                data-session-number="{{ row.session_number }}"
+                data-paper-number="{{ row.paper_number }}">
+              <td class="title-cell">
+                <div class="cell-text">
+                  <span class="mono">{{ row.paper_number }}</span>
+                  {% if row.paper_url %}<a href="{{ row.paper_url }}" target="_blank" rel="noopener">{{ row.title }}</a>{% else %}{{ row.title }}{% endif %}
+                </div>
+              </td>
+              <td class="abstract-cell">
+                <div class="cell-text">{{ row.abstract }}</div>
+              </td>
+              <td class="authors-cell">
+                <div class="cell-text">{{ row.authors | join("; ") }}</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+    (function () {
+      /* ---- Search / filter ---- */
+      const input = document.getElementById("search-input");
+      const table = document.getElementById("papers-table");
+      const rows = Array.from(table.querySelectorAll("tbody tr.paper-row"));
+
+      function norm(s) { return (s || "").toLowerCase(); }
+
+      function filter() {
+        const q = norm(input.value);
+        if (!q) {
+          rows.forEach(r => r.style.display = "");
+          table.querySelectorAll(".session-header-row").forEach(r => r.style.display = "");
+          return;
+        }
+        const vis = new Set();
+        rows.forEach(r => {
+          const match = norm(r.textContent).includes(q);
+          r.style.display = match ? "" : "none";
+          if (match) vis.add(r.dataset.sessionNumber);
+        });
+        table.querySelectorAll(".session-header-row").forEach(r => {
+          const sn = r.id.replace("session-", "");
+          r.style.display = vis.has(sn) ? "" : "none";
+        });
+      }
+      input.addEventListener("input", filter);
+
+      /* ---- Sort ---- */
+      table.querySelectorAll("thead th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const key = th.dataset.sortKey;
+          const asc = !th.dataset.sortDir || th.dataset.sortDir === "desc";
+          th.dataset.sortDir = asc ? "asc" : "desc";
+          const ci = Array.from(th.parentNode.children).indexOf(th);
+
+          const prs = Array.from(table.querySelectorAll("tbody tr.paper-row"));
+          prs.sort((a, b) => {
+            let at = a.children[ci].textContent.trim();
+            let bt = b.children[ci].textContent.trim();
+            if (key === "session" || key === "paper") {
+              const pn = v => v.split(/[\s.]+/).map(Number).filter(n => !isNaN(n));
+              const [a1=0,a2=0] = pn(at), [b1=0,b2=0] = pn(bt);
+              if (a1 !== b1) return asc ? a1-b1 : b1-a1;
+              return asc ? a2-b2 : b2-a2;
+            }
+            at = at.toLowerCase(); bt = bt.toLowerCase();
+            return asc ? at.localeCompare(bt) : bt.localeCompare(at);
+          });
+
+          const tbody = table.querySelector("tbody");
+          const hdrs = Array.from(tbody.querySelectorAll(".session-header-row"));
+          prs.forEach(r => tbody.removeChild(r));
+          const byS = {};
+          prs.forEach(r => { const s = r.dataset.sessionNumber; (byS[s] = byS[s] || []).push(r); });
+          hdrs.forEach(h => {
+            const s = h.id.replace("session-", "");
+            tbody.appendChild(h);
+            (byS[s] || []).forEach(r => tbody.appendChild(r));
+          });
+        });
+      });
+
+      /* ---- Column resize ---- */
+      table.querySelectorAll("th .resize-handle").forEach(handle => {
+        let startX, startW, col;
+        handle.addEventListener("mousedown", e => {
+          e.preventDefault();
+          const th = handle.parentElement;
+          const ci = Array.from(th.parentNode.children).indexOf(th);
+          col = table.querySelector("colgroup").children[ci];
+          startX = e.pageX;
+          startW = th.offsetWidth;
+          handle.classList.add("active");
+
+          function onMove(e2) {
+            const w = Math.max(60, startW + e2.pageX - startX);
+            col.style.width = w + "px";
+          }
+          function onUp() {
+            handle.classList.remove("active");
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+          }
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        });
+      });
+
+      // Density toggle.
+      (function setupDensity() {
+        const buttons = Array.from(document.querySelectorAll(".density-btn"));
+        function applyDensity(d) {
+          document.body.classList.remove("density-small", "density-medium", "density-large");
+          document.body.classList.add("density-" + d);
+          buttons.forEach(b => b.classList.toggle("active", b.dataset.density === d));
+        }
+        buttons.forEach(btn => {
+          btn.addEventListener("click", () => applyDensity(btn.dataset.density || "medium"));
+        });
+        applyDensity("medium");
+      })();
+
+      // Theme (light/dark) toggle.
+      (function setupTheme() {
+        const btn = document.getElementById("theme-toggle");
+        if (!btn) return;
+        const KEY = "theme";
+        function apply(theme) {
+          document.body.classList.toggle("theme-dark", theme === "dark");
+          document.body.classList.toggle("theme-light", theme === "light");
+          btn.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+        }
+        let stored = localStorage.getItem(KEY);
+        if (stored !== "light" && stored !== "dark") {
+          stored = "light";
+        }
+        apply(stored);
+        btn.addEventListener("click", () => {
+          stored = stored === "dark" ? "light" : "dark";
+          localStorage.setItem(KEY, stored);
+          apply(stored);
+        });
+      })();
+    })();
+    </script>
+  </body>
+</html>

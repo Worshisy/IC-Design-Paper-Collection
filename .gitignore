@@ -1,0 +1,19 @@
+# Generated data + site — large, regenerable, shared via iCloud instead of git.
+output/
+site/
+cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Reference PDFs (large binaries, not source)
+*.pdf
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
