@@ -26,7 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from parser import _is_front_matter  # noqa: E402
+from parser import _is_front_matter, _is_front_matter_record  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -67,6 +67,34 @@ CASES: list[tuple[str, bool]] = [
     ("Session list", True),
     ("The end of indexes", True),
     ("ISSCC glossary", True),
+    # Programme ephemera found by the 2026-09-20 per-source audits.
+    ("Notes", True),
+    ("Author list", True),
+    ("Sponsors", True),
+    ("CICC 2019 Sponsors", True),
+    ("USB label", True),
+    ("About Causal Productions", True),
+    ("Paper withdrawn", True),
+    ("Paper not available", True),
+    ("Conference Space Layout", True),
+    ("Contributor listings", True),
+    ("Staff or society listings", True),
+    ("San Francisco Marriott Hotel Location Maps", True),
+    ("Message from the General Chair", True),
+    ("Frequently asked questions", True),
+    ("F1: Machine Learning Hardware", True),
+    ("EE2: How to Save Lives with Circuits", True),
+    ("Forum 3: The Path to 6G", True),
+    ("ISSCC 2024 Panel Discussion", True),
+    ("Tutorials [10 abstracts]", True),
+    ("ISSCC 2026 ITPC EWAA Regional Subcommittee", True),
+    ("Committee List", True),
+    ("RFIC 2021 Steering Committee and External Support", True),
+    ("IEEE MTT-S International Microwave Symposium 2004/Microwave Week", True),
+    ("IMS panel sessions", True),
+    ("Monday poster session", True),
+    ("2004 IEEE Radio Frequency Integrated Circuits (RFIC) Symposium Cat. No. 04CH37535", True),
+
     # --- must NOT be filtered (real content) ------------------------------
     ("Watermarking-based copyright protection of sequential functions", False),
     ("A 55 mm/sup 2/ 256 Mb NROM flash memory with embedded microcontroller", False),
@@ -76,6 +104,11 @@ CASES: list[tuple[str, bool]] = [
     ("Welcoming the new era of GaN power devices", False),
     ("A 28-nm FeFET Compute-in-Memory Macro With 64x64 Array Size", False),
     ("122.7 TOPS/W Stdcell-Based DNN Accelerator Based on Transition Density", False),
+    ("A Panel Discussion Interface Circuit for Multi-Speaker Arrays", False),
+    ("Notes on the Design of Low-Noise Amplifiers", False),
+    ("A Sponsors-Free Randomness Extractor in 28nm CMOS", False),
+    ("Registration-Free Image Alignment Processor for AR Glasses", False),
+    ("A 7V/us Tutorial-Free Gate Driver for GaN FETs", False),
     # --- session headers must survive filtering ---------------------------
     ("Session 12 Overview: Data Converters", False),
     ("ISSCC 2024 Session 1 Overview: Plenary", False),
@@ -121,7 +154,9 @@ def sweep_stored_data(show_caught: int) -> None:
             for session in data.get("sessions", []):
                 for paper in session.get("papers", []):
                     title = (paper.get("title") or "").strip()
-                    if _is_front_matter(title):
+                    # Pass the abstract too: IEEE boilerplate abstracts identify
+                    # front matter that no title rule would catch.
+                    if _is_front_matter_record({"abstract": paper.get("abstract")}, title):
                         removed += 1
                         caught[title] += 1
                     else:

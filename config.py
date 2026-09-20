@@ -20,6 +20,9 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
     "cicc": {
         "name": "CICC",
         "search_term": "CICC",
+        # 2010 is indexed as "IEEE Custom Integrated Circuits Conference 2010",
+        # which a search for "CICC" alone does not return.
+        "search_terms": ["CICC", "Custom Integrated Circuits Conference"],
         "title_contains": "custom integrated circuits",
     },
     "jssc": {
@@ -112,6 +115,8 @@ class ScraperConfig:
     title_includes_any: List[str] = field(default_factory=list)
     title_excludes_any: List[str] = field(default_factory=list)
     year_to_pubs: Dict[int, List[str]] = field(default_factory=dict)
+    # Supplements discovery for individual years instead of replacing it.
+    year_pub_overrides: Dict[int, List[str]] = field(default_factory=dict)
 
     # HTTP behaviour
     user_agent: str = (
@@ -180,6 +185,7 @@ def get_config(conference_id: str = "isscc", create_dirs: bool = True) -> Scrape
         title_includes_any=list(conf.get("title_includes_any", [])),
         title_excludes_any=list(conf.get("title_excludes_any", [])),
         year_to_pubs=dict(conf.get("year_to_pubs", {})),
+        year_pub_overrides=dict(conf.get("year_pub_overrides", {})),
         project_root=root,
         cache_dir=cache,
         raw_html_dir=cache / "raw_html",

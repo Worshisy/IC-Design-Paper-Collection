@@ -62,6 +62,14 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         help="Alias for --validate-only (kept for readability).",
     )
     parser.add_argument(
+        "--reparse",
+        action="store_true",
+        help=(
+            "Rebuild JSON from cached raw records without touching the network. "
+            "Use after changing parser rules."
+        ),
+    )
+    parser.add_argument(
         "--enrich-affiliations",
         action="store_true",
         help=(
@@ -120,6 +128,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         if args.conference == "all":
             site_root = get_config(ids[0]).project_root / "site"
             build_master_index(site_root=site_root, conference_ids=list(CONFERENCES.keys()))
+        return 0
+
+    if args.reparse:
+        for cid in ids:
+            cfg = get_config(cid)
+            logger.info("=== Re-parsing cached records: %s ===", cfg.conference_name)
+            Scraper(config=cfg).reparse_all()
+            run_validation_and_exports(json_dir=cfg.json_dir, csv_dir=cfg.csv_dir)
         return 0
 
     if args.enrich_affiliations:

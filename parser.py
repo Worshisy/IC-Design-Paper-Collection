@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from models import ConferenceYear, Paper, Session
+from textclean import clean_text, split_number_prefix
 
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,13 @@ SKIP_TITLES = frozenset({
     # Misc.
     "awards", "award", "reflections", "dedication", "welcome", "welcome!",
     "foreword", "low-power analog signal processing",
+    # Programme ephemera seen across RFIC / CICC / ISSCC audits.
+    "notes", "author list", "sponsors", "sponsor", "usb label",
+    "about causal productions", "paper withdrawn", "paper not available",
+    "conference space layout", "contributor listings", "staff or society listings",
+    "monday poster session", "tuesday poster session", "wednesday poster session",
+    "index author", "detailed author index", "brief author index",
+    "hub page", "opinion", "teaser abstract", "breaker page",
 })
 
 # Title prefixes that indicate non-paper entries.
@@ -115,6 +123,7 @@ _CONF_FRONT_MATTER_NOUNS = (
     r"abstract\s+page|session\s+list|the\s+end\s+of\s+indexes|"
     r"author\s+information\s+page|steering\s+committee|committees?|"
     r"program.*|time\s*table|plenary\s+speaker.*|awards?|glossary|"
+    r"sponsors?|committee\s+list|"
     r"welcome.*|front\s+matter|back\s+matter"
 )
 
@@ -158,7 +167,56 @@ SKIP_PATTERNS = (
     re.compile(r"title page\]?$", re.IGNORECASE),
     re.compile(r"^steering committee\b", re.IGNORECASE),
     re.compile(r"^copyright\b", re.IGNORECASE),
+    # Programme items that are not authored papers: forums, panels, evening
+    # events, social events, tutorials round-ups, short courses.
+    re.compile(r"^(?:f|ee|se|sc|t)\d+\s*:", re.IGNORECASE),
+    re.compile(r"^(?:forum|evening\s+event|social\s+event|panel|panel\s+discussion|"
+               r"short\s+course|tutorial)\s*\d*\s*:", re.IGNORECASE),
+    re.compile(r"\bpanel\s+discussion$", re.IGNORECASE),
+    re.compile(r"^(?:tutorials|short\s+courses|forums|evening\s+events)\b", re.IGNORECASE),
+    re.compile(r"\[\s*\d+\s+abstracts?\s*\]$", re.IGNORECASE),
+    # Venue / logistics pages.
+    re.compile(r"\b(?:hotel|venue)\s+(?:location\s+)?maps?$", re.IGNORECASE),
+    re.compile(r"\blocation\s+maps?$", re.IGNORECASE),
+    re.compile(r"^registration\s+(?:desk|information|form|fees?|page|hours)\b", re.IGNORECASE),
+    re.compile(r"^message\s+from\b", re.IGNORECASE),
+    re.compile(r"^frequently\s+asked\s+questions", re.IGNORECASE),
+    # Committee and organisation listings in any phrasing.
+    re.compile(r"\b(?:steering|executive|organizing|organising|technical\s+program|"
+               r"program)\s+commit+ee", re.IGNORECASE),
+    re.compile(r"\bregional\s+subcommittee$", re.IGNORECASE),
+    re.compile(r"\bcommittee\s+list$", re.IGNORECASE),
+    # Catalogue / proceedings-record entries.
+    re.compile(r"\bcat\.?\s*no\.", re.IGNORECASE),
+    re.compile(r"^proceedings\s+of\s+the\b.*\b(?:conference|symposium)\b",
+               re.IGNORECASE),
+    re.compile(r"\bdigest\s+of\s+technical\s+papers\s*$", re.IGNORECASE),
+    # Co-located events that are not this conference's papers.
+    re.compile(r"^(?:ims|mtt-s)\b", re.IGNORECASE),
+    re.compile(r"\bmicrowave\s+week\b", re.IGNORECASE),
 )
+
+# Abstracts IEEE attaches to front matter. Far more reliable than the title
+# heuristics above: these are fixed boilerplate strings, so they identify
+# covers/indexes/committee pages whatever the title happens to say.
+FRONT_MATTER_ABSTRACTS = (
+    "presents the front cover",
+    "presents the back cover",
+    "presents the title page",
+    "presents the table of contents",
+    "author index contains an entry",
+    "intended for user notes",
+    "provides a listing of current committee",
+    "provides a listing of the officers",
+    "prospective authors are requested",
+    "these instructions give guidelines",
+    "presents a listing of sponsors",
+    "describes the above-named publication",
+)
+
+# Used only for short titles: one real paper (a 2018 CICC terahertz radio)
+# carries this auto-generated keyword-list abstract, and must not be dropped.
+KEYWORD_LIST_ABSTRACT = "the following topics are dealt with"
 
 
 def _normalize_whitespace(text: str) -> str:
@@ -190,6 +248,32 @@ def _is_front_matter(title: str) -> bool:
     return False
 
 
+def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
+    """
+    Front-matter test with the abstract available.
+
+    Falls back to the title rules, then checks IEEE's fixed boilerplate
+    abstracts, which catch covers/indexes/committee pages that no title rule
+    would recognise.
+    """
+
+    if _is_front_matter(title):
+        return True
+
+    abstract = (rec.get("abstract") or "").strip().lower()
+    if not abstract:
+        return False
+
+    head = abstract[:160]
+    if any(marker in head for marker in FRONT_MATTER_ABSTRACTS):
+        return True
+    # Auto-generated keyword lists mark front matter, except on a real paper -
+    # which is always long-titled, so require a short title here.
+    if KEYWORD_LIST_ABSTRACT in head and len(title) < 80:
+        return True
+    return False
+
+
 def _parse_session_header(title: str) -> Optional[Tuple[int, str]]:
     """
     Try to parse a session header from an article title.
@@ -212,6 +296,24 @@ def _parse_session_header(title: str) -> Optional[Tuple[int, str]]:
         return num, name
 
     return None
+
+
+# "Session MO1A: Integrated Mixers I" (RFIC 2004). The code is alphanumeric,
+# so SESSION_HEADER_RE, which wants digits, never matched these and they were
+# counted as papers.
+ALPHA_SESSION_HEADER_RE = re.compile(
+    r"^\s*Session\s+(?P<code>[A-Z][A-Z0-9]{1,5})\s*[:\-\u2013]\s*(?P<name>.+?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _parse_alpha_session_header(title: str) -> Optional[Tuple[str, str]]:
+    """Return (session_code, session_name) for alphanumeric session headers."""
+
+    match = ALPHA_SESSION_HEADER_RE.match(title)
+    if not match:
+        return None
+    return match.group("code").upper(), _clean_session_name(match.group("name"))
 
 
 def _sort_records_by_page(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -300,13 +402,21 @@ def _extract_paper(
 
     displayed_number: Optional[str] = None
     title = raw_title
-    prefix_match = PAPER_PREFIX_RE.match(raw_title)
+
+    # "2.8: Title" (ISSCC 2025 onwards) as well as the older "2.8 Title".
+    colon_number, stripped = split_number_prefix(title)
+    if colon_number:
+        displayed_number = colon_number
+        title = stripped
+
+    prefix_match = PAPER_PREFIX_RE.match(title)
     if prefix_match:
         displayed_number = prefix_match.group("num")
         title = prefix_match.group("title").strip()
 
+    if displayed_number:
         if displayed_number != inferred_number:
-            logger.warning(
+            logger.debug(
                 "Paper number mismatch in session %s: displayed=%s, inferred=%s, title=%r",
                 session.session_number, displayed_number, inferred_number, title,
             )
@@ -331,8 +441,8 @@ def _extract_paper(
         session_name=session.session_name,
         paper_number=inferred_number,
         inferred_paper_number=inferred_number,
-        title=title,
-        abstract=rec.get("abstract", "") or "",
+        title=clean_text(title),
+        abstract=clean_text(rec.get("abstract", "")),
         authors=authors,
         affiliations=[],
         author_affiliations_raw="",
@@ -395,7 +505,7 @@ def build_conference_year_from_api(
             if not conference_dates:
                 conference_dates = rec.get("publicationDate", "")
 
-            if _is_front_matter(raw_title):
+            if _is_front_matter_record(rec, raw_title):
                 continue
 
             issue_num = rec.get("issue")
@@ -479,6 +589,7 @@ def build_conference_year_from_api(
         # and swallows the whole proceedings.
         has_session_headers = any(
             _parse_session_header(title) is not None
+            or _parse_alpha_session_header(title) is not None
             for title in (
                 (rec.get("articleTitle") or "").strip() for rec in sorted_records
             )
@@ -495,7 +606,7 @@ def build_conference_year_from_api(
             if not conference_dates:
                 conference_dates = rec.get("publicationDate", "")
 
-            if _is_front_matter(raw_title):
+            if _is_front_matter_record(rec, raw_title):
                 continue
 
             header = _parse_session_header(raw_title)
@@ -503,6 +614,17 @@ def build_conference_year_from_api(
                 session_number, session_name = header
                 current_session = _get_or_create_session(session_number, session_name)
                 logger.debug("Detected session header: %s (number=%s)", raw_title, session_number)
+                continue
+
+            # "Session MO1A: Integrated Mixers I" - alphanumeric code, so it
+            # gets the next free sequential number and keeps its printed code.
+            alpha_header = _parse_alpha_session_header(raw_title)
+            if alpha_header is not None:
+                code, session_name = alpha_header
+                session_number = max(sessions_by_number, default=0) + 1
+                current_session = _get_or_create_session(session_number, session_name)
+                current_session.session_code = code
+                logger.debug("Detected alphanumeric session header: %s", raw_title)
                 continue
 
             # If a title includes an explicit paper prefix like "14.2 ...", use the
@@ -577,8 +699,68 @@ def build_conference_year_from_api(
         conference_location=conference_location or None,
     )
 
+    _deduplicate_papers(conference)
     _validate_conference_year(conference)
     return conference
+
+
+def _deduplicate_papers(conference: ConferenceYear) -> None:
+    """
+    Remove papers that appear twice in the same year.
+
+    ISSCC 2002 returns 56 titles twice - once under a bare "Session 0" bucket
+    and once under the real topical session, with different article numbers and
+    one copy missing its abstract. Keep the better-populated copy, preferring
+    the one that is not in a placeholder session, and renumber what is left.
+    """
+
+    best: Dict[str, Tuple[Session, Paper]] = {}
+    drop: List[Tuple[Session, Paper]] = []
+
+    for session in conference.sessions:
+        for paper in session.papers:
+            key = re.sub(r"\W+", " ", (paper.title or "").lower()).strip()
+            if not key:
+                continue
+            previous = best.get(key)
+            if previous is None:
+                best[key] = (session, paper)
+                continue
+
+            previous_session, previous_paper = previous
+            # Prefer a real session over session 0, then an abstract, then authors.
+            def rank(sess: Session, pap: Paper) -> Tuple[int, int, int]:
+                return (
+                    1 if sess.session_number > 0 else 0,
+                    1 if (pap.abstract or "").strip() else 0,
+                    len(pap.authors or []),
+                )
+
+            if rank(session, paper) > rank(previous_session, previous_paper):
+                best[key] = (session, paper)
+                drop.append(previous)
+            else:
+                drop.append((session, paper))
+
+    if not drop:
+        return
+
+    for session, paper in drop:
+        try:
+            session.papers.remove(paper)
+        except ValueError:
+            pass
+
+    logger.info(
+        "[%s] Removed %d duplicate paper record(s)", conference.year, len(drop)
+    )
+
+    conference.sessions = [s for s in conference.sessions if s.papers]
+    for session in conference.sessions:
+        for index, paper in enumerate(session.papers, start=1):
+            number = f"{session.session_number}.{index}"
+            paper.paper_number = number
+            paper.inferred_paper_number = number
 
 
 def _validate_conference_year(conference: ConferenceYear) -> None:

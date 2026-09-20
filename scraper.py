@@ -214,8 +214,17 @@ class Scraper:
             if pub_number:
                 year_to_pub[year] = pub_number
 
+        self._apply_pub_overrides(year_to_pub, start, end)
         logger.info("Discovered %d %s proceedings years", len(year_to_pub), self.config.conference_name)
         return year_to_pub
+
+    def _apply_pub_overrides(self, year_to_pub: Dict[int, str], start: int, end: int) -> None:
+        """Pin years the search cannot find (see year_pub_overrides in config)."""
+
+        for year, pubs in self.config.year_pub_overrides.items():
+            if start <= year <= end and pubs:
+                year_to_pub[year] = ",".join(str(pub) for pub in pubs)
+                logger.info("[%s] Using configured publication override %s", year, pubs)
 
     # ------------------------------------------------------------------
     # Year-level scraping
@@ -229,6 +238,11 @@ class Scraper:
 
     def _early_access_json_path(self) -> Path:
         return self.config.json_dir / "early_access.json"
+
+    def _records_cache_path(self, year: int) -> Path:
+        """Raw API records for one year, kept so re-parsing needs no network."""
+
+        return self.config.cache_dir / "records" / f"{year}.json"
 
     @staticmethod
     def _is_early_issue_session(session_name: str) -> bool:
@@ -345,6 +359,10 @@ class Scraper:
             save_json(errors_path, errors)
             return {}
 
+        # Keep the raw records: parser changes can then be re-applied offline
+        # with reparse_year(), instead of re-fetching everything from IEEE.
+        save_json(self._records_cache_path(year), records)
+
         year_model = build_conference_year_from_api(
             records=records,
             year=year,
@@ -441,6 +459,78 @@ class Scraper:
             "Early Access: %d from this run, %d total after merge -> %s",
             len(early_papers), len(papers), path,
         )
+
+    def reparse_year(self, year: int) -> bool:
+        """
+        Rebuild one year's JSON from cached raw records, with no network use.
+
+        Returns False when that year has no cached records yet.
+        """
+
+        cache_path = self._records_cache_path(year)
+        if not cache_path.exists():
+            return False
+
+        try:
+            records = load_json(cache_path)
+        except (OSError, ValueError) as exc:
+            logger.warning("[%s] Unreadable record cache: %s", year, exc)
+            return False
+        if not records:
+            return False
+
+        pubs = self.config.year_to_pubs.get(year) or []
+        primary_pub = str(pubs[0]) if pubs else str(self.config.fixed_punumber or "")
+        if self.config.is_journal:
+            proceedings_url = f"{self.config.base_url}/xpl/issues?punumber={primary_pub}"
+        else:
+            proceedings_url = f"{self.config.base_url}/xpl/conhome/{primary_pub}/proceeding"
+
+        year_model = build_conference_year_from_api(
+            records=records,
+            year=year,
+            proceedings_url=proceedings_url,
+            publication_number=primary_pub,
+            group_by_issue=bool(self.config.is_journal),
+        )
+        year_data = asdict(year_model)
+        save_json(self._year_json_path(year), year_data)
+        logger.info(
+            "[%s] Re-parsed from cache: %d sessions, %d papers",
+            year, len(year_model.sessions),
+            sum(len(sess.papers) for sess in year_model.sessions),
+        )
+        return True
+
+    def reparse_all(self) -> int:
+        """Re-parse every cached year for this source. Returns years rebuilt."""
+
+        cache_dir = self.config.cache_dir / "records"
+        if not cache_dir.is_dir():
+            logger.warning(
+                "%s: no cached records yet - run a scrape once to populate them.",
+                self.config.conference_name,
+            )
+            return 0
+
+        years = sorted(int(p.stem) for p in cache_dir.glob("*.json") if p.stem.isdigit())
+        rebuilt = 0
+        all_early: List[Dict[str, Any]] = []
+        for year in years:
+            if self.reparse_year(year):
+                rebuilt += 1
+                if self.config.is_journal:
+                    year_data = load_json(self._year_json_path(year))
+                    early = self._extract_early_access_from_year_data(year, year_data)
+                    if early:
+                        all_early.extend(early)
+                        save_json(self._year_json_path(year), year_data)
+
+        if self.config.is_journal and years:
+            self._save_early_access(all_early, scraped_years=set(years))
+
+        logger.info("%s: re-parsed %d cached years.", self.config.conference_name, rebuilt)
+        return rebuilt
 
     # ------------------------------------------------------------------
     # Author affiliations (one extra request per paper)
