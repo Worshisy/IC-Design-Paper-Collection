@@ -9,30 +9,35 @@ Last updated: 2026-09-20.
 
 ## Thread: affiliation backfill
 
-**Status:** mechanism built and working; the corpus is mostly still empty.
+**Status:** RUNNING since 2026-09-20 17:53. Measured throughput **1.11
+papers/sec**, so ~**15 hours** for all 59,463 papers.
 
-Author affiliations are not in the search API — they need one extra request
-per paper against `/rest/document/<articleNumber>/authors` (~0.7 s). A full
-backfill of ~57k papers is roughly **17 hours** of wall clock, so it runs as a
-separate, resumable, cached pass rather than part of the scrape.
+Author affiliations are not in the search API — each paper needs its own
+request to `/rest/document/<articleNumber>/authors`. Until a year is enriched,
+its author names show without the hover tooltip, which is the intended
+graceful degradation.
 
-Until a year has been enriched, its author names simply show without a
-tooltip, which is the intended degradation.
+Work is ordered **newest year first across all nine sources at once**, not
+source by source, so whatever is done is the part you would actually read.
+
+- Progress: `cache/affiliation_progress.json` (percent, last year/source).
+- Log: the run's stdout; each source also caches to
+  `cache/<source>/affiliations.json`, flushed every 50 lookups.
+
+**Safe to stop at any time** — a kill loses at most 50 requests. To resume, or
+to continue it on another evening:
+
+```
+D:\anaconda3\python.exe tools/backfill_affiliations.py
+D:\anaconda3\python.exe tools/backfill_affiliations.py --from-year 2020   # recent only
+D:\anaconda3\python.exe tools/backfill_affiliations.py --budget 2000      # a bounded chunk
+```
 
 Action items:
 
-- [ ] Decide how much to backfill. Options: newest 2–3 years only (fast,
-      covers what you read most), or let it grind through everything over a
-      few evenings.
-- [ ] Run it in chunks — it is resumable and re-running only fetches what is
-      still missing:
-      ```
-      update.bat --affiliations 1000
-      ```
-      or per source:
-      ```
-      D:\anaconda3\python.exe main.py --conference isscc --enrich-affiliations --affiliation-limit 1000
-      ```
+- [ ] Let it run, or stop it and do it in chunks — either is fine.
+- [ ] Once a decent chunk is done, rebuild and re-sync so the tooltips appear:
+      `update.bat --no-scrape`.
 
 ## Thread: marks across machines
 
