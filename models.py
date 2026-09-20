@@ -18,6 +18,8 @@ class Paper:
     title: str
     abstract: str
     authors: List[str]
+    # Index-aligned with `authors`: affiliations[i] belongs to authors[i].
+    # Empty until the per-document authors endpoint has been fetched.
     affiliations: List[str]
     author_affiliations_raw: str
     conference_name: str
@@ -27,6 +29,7 @@ class Paper:
     displayed_paper_number: Optional[str] = None
     paper_url: Optional[str] = None
     doi: Optional[str] = None
+    article_number: Optional[str] = None
 
 
 @dataclass(slots=True)

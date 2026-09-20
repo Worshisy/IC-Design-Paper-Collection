@@ -58,35 +58,47 @@ PAPER_PREFIX_RE = re.compile(
     re.VERBOSE,
 )
 
-# Titles to skip — structural front matter, not actual papers.
+# Titles to skip - structural front matter, not actual papers.
+# These rules run for every conference AND journal, so keep entries generic;
+# anchor anything source-specific in SKIP_PATTERNS instead.
 SKIP_TITLES = frozenset({
-    "front cover",
-    "copyright page",
-    "title page",
-    "table of contents",
-    "awards",
-    "reflections",
-    "author index",
-    "blank page",
-    "index to authors",
-    "dedication",
-    "welcome!",
-    "low-power analog signal processing",
-    "society information",
-    "the editor's corner",
-    "editor's corner",
+    # Covers and boilerplate pages.
+    "front cover", "back cover", "cover page", "front matter", "back matter",
+    "copyright page", "copyright", "copyright notice", "copyright form",
+    "ieee copyright form", "title page", "blank page",
+    # Contents and indexes.
+    "table of contents", "contents", "toc", "index",
+    "author index", "index to authors", "affiliation index", "subject index",
+    "the end of indexes", "author information page",
+    # Committees.
+    "committee", "committees", "steering committee", "organizing committee",
+    "program committee", "executive committee", "technical program committee",
+    "international technical program committee",
+    # Editorial / society boilerplate (journals).
+    "editorial", "guest editorial", "editorial board", "society information",
+    "society staff", "publication information", "the editor's corner",
+    "editor's corner", "information for authors", "instructions for authors",
+    "information for contributors", "list of reviewers", "reviewers",
+    "advertisement",
+    # Programme material.
+    "program file", "program at a glance", "program-at-a-glance",
+    "abstract cards", "abstract page", "session list", "tutorials",
+    # Misc.
+    "awards", "award", "reflections", "dedication", "welcome", "welcome!",
+    "foreword", "low-power analog signal processing",
 })
 
-# Title prefixes/substrings that indicate non-paper entries.
+# Title prefixes that indicate non-paper entries.
 SKIP_PREFIXES = (
     "tutorial:",
     "short course:",
-    "isscc awards",
-    "isscc award",
     "foreword",
     "[front",
+    "[back",
     "[title page",
     "[copyright",
+    "[blank",
+    "blank page",
     "executive committee",
     "international technical program committee",
     "program committee",
@@ -94,19 +106,58 @@ SKIP_PREFIXES = (
     "timetable",
 )
 
-# Patterns for misc non-paper entries that appear in older years.
-# IMPORTANT: must NOT match session headers like "ISSCC 2024 Session 1 Overview".
+# Front-matter nouns that follow an "<ACRONYM> <YEAR> " prefix, e.g.
+# "RFIC 2024 Cover Page". Deliberately excludes "Session N ..." so that real
+# session headers ("ISSCC 2024 Session 1 Overview: ...") are never skipped.
+_CONF_FRONT_MATTER_NOUNS = (
+    r"cover(?:\s+page)?|toc|table\s+of\s+contents|author\s+index|"
+    r"affiliation\s+index|subject\s+index|index|abstract\s+cards?|"
+    r"abstract\s+page|session\s+list|the\s+end\s+of\s+indexes|"
+    r"author\s+information\s+page|steering\s+committee|committees?|"
+    r"program.*|time\s*table|plenary\s+speaker.*|awards?|glossary|"
+    r"welcome.*|front\s+matter|back\s+matter"
+)
+
+# Patterns for non-paper entries. Generic across sources - no conference
+# acronym is hardcoded, so adding a new conference needs no change here.
 SKIP_PATTERNS = (
-    re.compile(r"^isscc\s+\d{4}\s+(?!session)", re.IGNORECASE),  # "ISSCC 2011 timetable" but not session headers
-    re.compile(r"^isscc\s+\d{4}$", re.IGNORECASE),                # bare "ISSCC 2024"
+    # "<ACRONYM> <YEAR> <front-matter noun>" e.g. "RFIC 2024 Cover Page".
+    re.compile(
+        rf"^[a-z][a-z\-.]{{1,12}}\s+\d{{4}}\s+(?:{_CONF_FRONT_MATTER_NOUNS})$",
+        re.IGNORECASE,
+    ),
+    # Bare "<ACRONYM> <YEAR>" with nothing else, e.g. "ISSCC 2024".
+    re.compile(r"^[a-z][a-z\-.]{1,12}\s+\d{4}$", re.IGNORECASE),
+    # Bracketed front matter: "[Blank page]", "[Front cover]", "[Breaker page]".
+    # Keyword-gated so bracketed scholarly items (authors' replies, comments)
+    # are not mistaken for front matter.
+    re.compile(
+        r"^\[(?:blank|breaker|front|back|inside|cover|title|copyright|"
+        r"table\s+of\s+contents|advertisement|index|pdf\s+reader)\b",
+        re.IGNORECASE,
+    ),
+    # Journal mastheads / boilerplate, which carry the full journal name.
+    re.compile(r"\b(?:information|instructions)\s+for\s+(?:authors|contributors)\b", re.IGNORECASE),
+    re.compile(r"\bpublication\s+information\b", re.IGNORECASE),
+    re.compile(r"\bsociety\s+(?:information|staff)\b", re.IGNORECASE),
+    re.compile(r"\beditorial\s+board\b", re.IGNORECASE),
+    # "copyright" only as boilerplate, never mid-title (real papers discuss it).
+    re.compile(r"\bcopyright\s+(?:form|page|notice|transfer)\b", re.IGNORECASE),
+    re.compile(r"\btable\s+of\s+contents\b", re.IGNORECASE),
+    re.compile(r"(?:author|affiliation|subject)\s+index$", re.IGNORECASE),
     re.compile(r"call for papers$", re.IGNORECASE),
-    re.compile(r"^isscc glossary$", re.IGNORECASE),
+    re.compile(r"\bglossary$", re.IGNORECASE),
     re.compile(r"^\d{4}\s+IEEE\s+International", re.IGNORECASE),
-    re.compile(r"^tutorials$", re.IGNORECASE),
-    re.compile(r"society information$", re.IGNORECASE),
-    re.compile(r"^the editor'?s corner$", re.IGNORECASE),
-    re.compile(r"^guest editorial$", re.IGNORECASE),
-    re.compile(r"^editorial$", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+program", re.IGNORECASE),
+    re.compile(r"^the\s+editor'?s\s+corner$", re.IGNORECASE),
+    re.compile(r"^(?:guest\s+)?editorial$", re.IGNORECASE),
+    re.compile(r"^welcome\b", re.IGNORECASE),
+    re.compile(r"\[advertisement\]", re.IGNORECASE),
+    re.compile(r"^advertisement\b", re.IGNORECASE),
+    re.compile(r"cover page\]?$", re.IGNORECASE),
+    re.compile(r"title page\]?$", re.IGNORECASE),
+    re.compile(r"^steering committee\b", re.IGNORECASE),
+    re.compile(r"^copyright\b", re.IGNORECASE),
 )
 
 
@@ -291,6 +342,7 @@ def _extract_paper(
         displayed_paper_number=displayed_number,
         paper_url=paper_url,
         doi=rec.get("doi"),
+        article_number=str(rec.get("articleNumber") or "") or None,
     )
 
 
@@ -366,6 +418,8 @@ def build_conference_year_from_api(
                     session_name = "Early Access"
                 elif volume and issue_num:
                     session_name = f"Vol. {volume}, Issue {issue_num}"
+                elif volume:
+                    session_name = f"Vol. {volume}"
                 elif issue_num:
                     session_name = f"Issue {issue_num}"
                 else:
@@ -419,6 +473,18 @@ def build_conference_year_from_api(
             sessions.append(created)
             return created
 
+        # Only trust a "12.3 ..." title prefix as a session marker when this
+        # year genuinely uses session headers. Without the guard, a performance
+        # figure in a title ("122.7 TOPS/W ...", VLSI 2024) invents session 122
+        # and swallows the whole proceedings.
+        has_session_headers = any(
+            _parse_session_header(title) is not None
+            for title in (
+                (rec.get("articleTitle") or "").strip() for rec in sorted_records
+            )
+            if title and not _is_front_matter(title)
+        )
+
         for rec in sorted_records:
             raw_title = rec.get("articleTitle", "").strip()
             if not raw_title:
@@ -442,7 +508,9 @@ def build_conference_year_from_api(
             # If a title includes an explicit paper prefix like "14.2 ...", use the
             # prefix's major number as the owning session. This guards against years
             # where API record ordering is imperfect and headers/papers are interleaved.
-            prefix_session_number = _paper_prefix_session_number(raw_title)
+            prefix_session_number = (
+                _paper_prefix_session_number(raw_title) if has_session_headers else None
+            )
             if prefix_session_number is not None:
                 current_session = _get_or_create_session(prefix_session_number)
 

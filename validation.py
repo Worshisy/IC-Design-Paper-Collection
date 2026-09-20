@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -195,10 +195,8 @@ def run_validation_and_exports(
     - validation summary JSON and CSV
     """
 
-    cfg = get_config()
-    json_dir = json_dir
     if csv_dir is None:
-        csv_dir = cfg.csv_dir
+        csv_dir = get_config().csv_dir
 
     ensure_dir(json_dir)
     ensure_dir(csv_dir)
@@ -234,8 +232,8 @@ def run_validation_and_exports(
                 loaded_errors = load_json(errors_path)
                 if isinstance(loaded_errors, list):
                     error_records = loaded_errors
-            except Exception:
-                logger.warning("Failed to load error report for year %s", year)
+            except (OSError, ValueError) as exc:
+                logger.warning("Failed to load error report for year %s: %s", year, exc)
 
         summary = _validate_year(year_data, error_records=error_records)
         summaries.append(summary)

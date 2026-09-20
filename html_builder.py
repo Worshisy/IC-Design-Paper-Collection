@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,13 @@ def _create_env() -> Environment:
     loader = FileSystemLoader(str(templates_dir))
     env = Environment(
         loader=loader,
-        autoescape=select_autoescape(["html", "xml"]),
+        # Templates are named "*.html.j2"; select_autoescape looks at the final
+        # extension only, so "html"/"xml" alone would leave autoescape OFF and
+        # interpolate API text raw. Match on the real suffix.
+        autoescape=select_autoescape(
+            enabled_extensions=("html", "xml", "j2"),
+            default_for_string=True,
+        ),
     )
     return env
 
@@ -60,6 +67,7 @@ def _flatten_papers(year_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "abstract": paper.get("abstract", ""),
                 "authors": paper.get("authors", []),
                 "affiliations": paper.get("affiliations", []),
+                "article_number": paper.get("article_number") or "",
                 "paper_url": paper.get("paper_url") or "",
                 "doi": paper.get("doi"),
                 "displayed_paper_number": paper.get("displayed_paper_number"),
@@ -138,10 +146,15 @@ def build_index_page(
 
     ensure_dir(output_dir)
     template = env.get_template("index.html.j2")
-    ordered = sorted(summaries, key=lambda s: s.year)
+    # Newest year first; Early Access is prepended by the template.
+    ordered = sorted(summaries, key=lambda s: s.year, reverse=True)
 
-    import json as _json
-    papers_json = _json.dumps(all_papers or [], ensure_ascii=False, separators=(",", ":"))
+    # Embedded in a <script> block, so neutralise any "</script>" that could
+    # appear inside a title or abstract and end the block early.
+    papers_json = (
+        json.dumps(all_papers or [], ensure_ascii=False, separators=(",", ":"))
+        .replace("</", "<\\/")
+    )
 
     html = template.render(
         years=ordered,
@@ -170,7 +183,9 @@ def build_html_for_year_range(
 
     src_dir = input_json_dir
     if output_html_dir is None:
-        output_html_dir = get_config().project_root / "site" / "isscc"
+        # Mirror the JSON layout: output/<id>/json -> site/<id>
+        conference_id = src_dir.parent.name or "isscc"
+        output_html_dir = get_config(conference_id, create_dirs=False).html_dir
     ensure_dir(src_dir)
     ensure_dir(output_html_dir)
 
@@ -219,6 +234,8 @@ def build_html_for_year_range(
                     "t": paper.get("title", ""),
                     "ab": paper.get("abstract", ""),
                     "au": "; ".join(paper.get("authors", [])),
+                    "af": paper.get("affiliations", []),
+                    "id": paper.get("article_number") or "",
                     "url": paper.get("paper_url") or "",
                 })
 
@@ -236,7 +253,7 @@ def build_html_for_year_range(
 
             ea_rows: List[Dict[str, Any]] = []
             ea_sessions: List[Dict[str, Any]] = []
-            for y in sorted(grouped):
+            for y in sorted(grouped, reverse=True):
                 papers_for_year = grouped[y]
                 ea_sessions.append(
                     {
@@ -256,6 +273,8 @@ def build_html_for_year_range(
                             "title": p.get("title", ""),
                             "abstract": p.get("abstract", ""),
                             "authors": p.get("authors", []),
+                            "affiliations": p.get("affiliations", []),
+                            "article_number": p.get("article_number") or "",
                             "paper_url": p.get("paper_url") or "",
                         }
                     )
@@ -267,6 +286,8 @@ def build_html_for_year_range(
                             "t": p.get("title", ""),
                             "ab": p.get("abstract", ""),
                             "au": "; ".join(p.get("authors", [])),
+                            "af": p.get("affiliations", []),
+                            "id": p.get("article_number") or "",
                             "url": p.get("paper_url") or "",
                         }
                     )
@@ -287,6 +308,8 @@ def build_html_for_year_range(
                 {"label": "Early Access", "href": "early_access.html", "meta": f"{len(ea_rows)} papers"}
             )
 
+    write_annotations_seed(output_html_dir)
+
     if summaries:
         build_index_page(
             env=env,
@@ -298,6 +321,37 @@ def build_html_for_year_range(
         )
     else:
         logger.warning("No summaries generated; index.html will not be created.")
+
+
+def annotations_path() -> Path:
+    """Single source of truth for user marks, kept out of the scraped data."""
+
+    return get_config(create_dirs=False).project_root / "userdata" / "annotations.json"
+
+
+def write_annotations_seed(output_dir: Path) -> None:
+    """
+    Write annotations.js next to the pages.
+
+    Pages opened with file:// cannot fetch JSON, so the marks ship as a plain
+    script that assigns a global. Always written (empty when there are no
+    marks) so the <script src> never 404s.
+    """
+
+    payload: Dict[str, Any] = {"version": 1, "papers": {}}
+    src = annotations_path()
+    if src.exists():
+        try:
+            loaded = load_json(src)
+            if isinstance(loaded, dict) and isinstance(loaded.get("papers"), dict):
+                payload = loaded
+        except (OSError, ValueError) as exc:
+            logger.warning("Could not read %s: %s", src, exc)
+
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    (output_dir / "annotations.js").write_text(
+        "window.ANNOTATIONS_SEED = " + body + ";\n", encoding="utf-8"
+    )
 
 
 def build_master_index(site_root: Path, conference_ids: List[str]) -> None:
@@ -319,6 +373,8 @@ def build_master_index(site_root: Path, conference_ids: List[str]) -> None:
 
 
 __all__ = [
+    "annotations_path",
+    "write_annotations_seed",
     "build_html_for_year_range",
     "build_year_page",
     "build_index_page",

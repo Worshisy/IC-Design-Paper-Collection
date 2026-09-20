@@ -124,6 +124,9 @@ class ScraperConfig:
     backoff_initial_seconds: float = 2.0
     backoff_max_seconds: float = 30.0
     rate_limit_seconds: float = 1.5
+    # The per-document authors endpoint is one call per paper, so it gets a
+    # shorter delay than the search API to keep backfills tractable.
+    affiliation_rate_limit_seconds: float = 0.4
     rows_per_page: int = 100
 
     # Paths (set by get_config from project_root + conference_id)
@@ -135,8 +138,14 @@ class ScraperConfig:
     html_dir: Path = field(default_factory=Path)
 
 
-def get_config(conference_id: str = "isscc") -> ScraperConfig:
-    """Return a ScraperConfig for the given conference. Creates dirs."""
+def get_config(conference_id: str = "isscc", create_dirs: bool = True) -> ScraperConfig:
+    """
+    Return a ScraperConfig for the given conference.
+
+    create_dirs=False is for callers that only need paths (e.g. the shared
+    HTTP session), so merely importing a module never creates directories
+    for a conference the user did not ask for.
+    """
 
     conf = CONFERENCES.get(conference_id)
     if not conf:
@@ -164,7 +173,8 @@ def get_config(conference_id: str = "isscc") -> ScraperConfig:
         html_dir=root / "site" / conference_id,
     )
 
-    for directory in (cfg.cache_dir, cfg.raw_html_dir, cfg.json_dir, cfg.csv_dir, cfg.html_dir):
-        directory.mkdir(parents=True, exist_ok=True)
+    if create_dirs:
+        for directory in (cfg.cache_dir, cfg.json_dir, cfg.csv_dir, cfg.html_dir):
+            directory.mkdir(parents=True, exist_ok=True)
 
     return cfg

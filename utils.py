@@ -53,7 +53,7 @@ class HttpError(RuntimeError):
 def _build_session() -> requests.Session:
     """Create a preconfigured Requests session."""
 
-    cfg = get_config()
+    cfg = get_config(create_dirs=False)
     session = requests.Session()
     session.headers.update(
         {
@@ -83,7 +83,7 @@ def make_retrying_post() -> Callable[[str, Dict[str, Any]], Dict[str, Any]]:
     Returns a callable that accepts (url, json_payload) and returns parsed JSON.
     """
 
-    cfg = get_config()
+    cfg = get_config(create_dirs=False)
     logger = logging.getLogger("http")
 
     @retry(
@@ -111,4 +111,40 @@ def make_retrying_post() -> Callable[[str, Dict[str, Any]], Dict[str, Any]]:
     return wrapper
 
 
+def make_retrying_get() -> Callable[[str], Dict[str, Any]]:
+    """
+    Build a GET wrapper with the same retry policy as the POST wrapper.
+
+    Used for the per-document authors endpoint, which is a plain GET.
+    """
+
+    cfg = get_config(create_dirs=False)
+    logger = logging.getLogger("http")
+
+    @retry(
+        retry=retry_if_exception_type(requests.RequestException),
+        stop=stop_after_attempt(cfg.max_retries),
+        wait=wait_exponential(
+            multiplier=cfg.backoff_initial_seconds,
+            max=cfg.backoff_max_seconds,
+        ),
+        reraise=True,
+    )
+    def _get(url: str) -> Dict[str, Any]:
+        session = get_session()
+        logger.debug("GET %s", url)
+        resp = session.get(url, timeout=cfg.request_timeout_seconds)
+        resp.raise_for_status()
+        return resp.json()
+
+    def wrapper(url: str) -> Dict[str, Any]:
+        try:
+            return _get(url)
+        except RetryError as exc:
+            raise HttpError(f"Failed to GET {url!r} after retries") from exc
+
+    return wrapper
+
+
 retrying_post = make_retrying_post()
+retrying_get = make_retrying_get()

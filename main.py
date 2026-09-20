@@ -7,6 +7,7 @@ from typing import Optional
 
 from config import CONFERENCES, get_config
 from scraper import Scraper
+from validation import run_validation_and_exports
 from utils import setup_logging
 
 
@@ -38,7 +39,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--force-refresh",
         action="store_true",
-        help="Ignore cached HTML and refetch all pages for the selected years.",
+        help="Re-fetch every selected year from the API, ignoring existing JSON (implies --overwrite).",
     )
     parser.add_argument(
         "--overwrite",
@@ -61,6 +62,19 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         help="Alias for --validate-only (kept for readability).",
     )
     parser.add_argument(
+        "--enrich-affiliations",
+        action="store_true",
+        help=(
+            "Fetch per-author affiliations for stored years (newest first). "
+            "One extra request per paper; resumable via cache/<id>/affiliations.json."
+        ),
+    )
+    parser.add_argument(
+        "--affiliation-limit",
+        type=int,
+        help="Stop affiliation enrichment after this many papers per source.",
+    )
+    parser.add_argument(
         "--input-json-dir",
         type=str,
         help="Directory containing per-year JSON files (defaults to configured output/<conference>/json).",
@@ -71,7 +85,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 def _conference_ids(conference_arg: str) -> list[str]:
     """Return list of conference ids to run (excluding 'all')."""
     if conference_arg == "all":
-        return [c for c in CONFERENCES.keys()]
+        return list(CONFERENCES.keys())
     return [conference_arg]
 
 
@@ -108,9 +122,20 @@ def main(argv: Optional[list[str]] = None) -> int:
             build_master_index(site_root=site_root, conference_ids=list(CONFERENCES.keys()))
         return 0
 
-    if args.validate_only or args.export_only:
-        from validation import run_validation_and_exports
+    if args.enrich_affiliations:
+        for cid in ids:
+            cfg = get_config(cid)
+            logger.info("=== Affiliations: %s ===", cfg.conference_name)
+            scraper = Scraper(config=cfg)
+            scraper.enrich_affiliations(
+                start_year=args.start_year,
+                end_year=args.end_year,
+                max_papers=args.affiliation_limit,
+            )
+            run_validation_and_exports(json_dir=cfg.json_dir, csv_dir=cfg.csv_dir)
+        return 0
 
+    if args.validate_only or args.export_only:
         for cid in ids:
             cfg = get_config(cid)
             input_dir = Path(args.input_json_dir) if args.input_json_dir else cfg.json_dir
@@ -130,14 +155,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         scraper = Scraper(
             config=cfg,
             force_refresh=bool(args.force_refresh),
-            overwrite=bool(args.overwrite),
+            overwrite=bool(args.overwrite or args.force_refresh),
         )
         scraper.scrape_year_range(
             start_year=args.start_year,
             end_year=args.end_year,
         )
-        from validation import run_validation_and_exports
-
         run_validation_and_exports(
             json_dir=cfg.json_dir,
             csv_dir=cfg.csv_dir,

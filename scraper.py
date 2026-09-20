@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from config import ScraperConfig, get_config
 from parser import build_conference_year_from_api
-from utils import HttpError, ensure_dir, load_json, retrying_post, save_json
+from utils import HttpError, load_json, retrying_get, retrying_post, save_json
 
 
 logger = logging.getLogger(__name__)
@@ -369,13 +369,190 @@ class Scraper:
                         "issue": "missing authors",
                     })
 
-                logger.info(
+                logger.debug(
                     "[%s] session %s paper %s OK",
                     year, session.session_number, paper.paper_number,
                 )
 
         save_json(errors_path, errors)
         return year_data
+
+    def _save_early_access(
+        self,
+        early_papers: List[Dict[str, Any]],
+        scraped_years: set[int],
+    ) -> None:
+        """
+        Merge this run's Early Access papers into the shared collection.
+
+        Only entries belonging to the years this run actually scraped are
+        replaced, so scraping a single year never drops the other years.
+        """
+
+        path = self._early_access_json_path()
+        merged: Dict[str, Dict[str, Any]] = {}
+
+        if path.exists():
+            try:
+                prior = load_json(path)
+                for paper in prior.get("papers", []):
+                    try:
+                        paper_year = int(paper.get("year", 0) or 0)
+                    except (TypeError, ValueError):
+                        paper_year = 0
+                    if paper_year in scraped_years:
+                        continue  # re-fetched this run; drop the stale copy
+                    key = paper.get("paper_url") or paper.get("title", "")
+                    if key:
+                        merged[key] = paper
+            except (OSError, ValueError) as exc:
+                logger.warning("Early Access file unreadable, rebuilding: %s", exc)
+
+        for paper in early_papers:
+            key = paper.get("paper_url") or paper.get("title", "")
+            if key:
+                merged[key] = paper
+
+        papers = sorted(
+            merged.values(),
+            key=lambda p: (-int(p.get("year", 0) or 0), p.get("title", "")),
+        )
+        save_json(
+            path,
+            {
+                "conference_name": self.config.conference_name,
+                "label": "Early Access",
+                "papers": papers,
+            },
+        )
+        logger.info(
+            "Early Access: %d from this run, %d total after merge -> %s",
+            len(early_papers), len(papers), path,
+        )
+
+    # ------------------------------------------------------------------
+    # Author affiliations (one extra request per paper)
+    # ------------------------------------------------------------------
+
+    def _affiliation_cache_path(self) -> Path:
+        return self.config.cache_dir / "affiliations.json"
+
+    def _fetch_author_affiliations(self, article_number: str) -> Optional[List[str]]:
+        """
+        Return affiliations index-aligned with the document author list.
+
+        The search API omits affiliations entirely; only the per-document
+        authors endpoint carries them.
+        """
+
+        url = f"{self.config.base_url}/rest/document/{article_number}/authors"
+        time.sleep(self.config.affiliation_rate_limit_seconds)
+        data = retrying_get(url)
+        authors = data.get("authors")
+        if not isinstance(authors, list):
+            return None
+
+        affiliations: List[str] = []
+        for author in authors:
+            affiliation = author.get("affiliation") or []
+            if isinstance(affiliation, str):
+                affiliation = [affiliation]
+            affiliations.append("; ".join(a for a in affiliation if a))
+        return affiliations
+
+    def enrich_affiliations(
+        self,
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
+        max_papers: Optional[int] = None,
+    ) -> int:
+        """
+        Fill in per-author affiliations for stored years, newest year first.
+
+        Resumable: every lookup is cached in cache/<id>/affiliations.json, so
+        re-running only fetches papers still missing. Returns papers updated.
+        """
+
+        cache: Dict[str, Any] = {}
+        cache_path = self._affiliation_cache_path()
+        if cache_path.exists():
+            try:
+                cache = load_json(cache_path)
+            except (OSError, ValueError):
+                logger.warning("Affiliation cache unreadable; starting fresh.")
+
+        year_paths = sorted(
+            (p for p in self.config.json_dir.glob("*.json") if p.stem.isdigit()),
+            key=lambda p: int(p.stem),
+            reverse=True,
+        )
+
+        updated = 0
+        fetched_since_save = 0
+        for path in year_paths:
+            year = int(path.stem)
+            if start_year is not None and year < start_year:
+                continue
+            if end_year is not None and year > end_year:
+                continue
+
+            year_data = load_json(path)
+            year_changed = False
+
+            for session in year_data.get("sessions", []):
+                for paper in session.get("papers", []):
+                    if max_papers is not None and updated >= max_papers:
+                        break
+                    if paper.get("affiliations"):
+                        continue
+                    article_number = paper.get("article_number")
+                    if not article_number:
+                        continue
+
+                    if article_number in cache:
+                        affiliations = cache[article_number]
+                    else:
+                        try:
+                            affiliations = self._fetch_author_affiliations(article_number)
+                        except HttpError as exc:
+                            logger.warning(
+                                "[%s] affiliation fetch failed for %s: %s",
+                                year, article_number, exc,
+                            )
+                            continue
+                        cache[article_number] = affiliations
+                        fetched_since_save += 1
+                        if fetched_since_save >= 50:
+                            save_json(cache_path, cache)
+                            fetched_since_save = 0
+
+                    if not affiliations:
+                        continue
+
+                    paper["affiliations"] = affiliations
+                    paper["author_affiliations_raw"] = "; ".join(
+                        dict.fromkeys(a for a in affiliations if a)
+                    )
+                    updated += 1
+                    year_changed = True
+
+                if max_papers is not None and updated >= max_papers:
+                    break
+
+            if year_changed:
+                save_json(path, year_data)
+                logger.info("[%s] affiliations written (%d papers updated so far)", year, updated)
+
+            if max_papers is not None and updated >= max_papers:
+                logger.info("Reached max_papers=%s; stopping.", max_papers)
+                break
+
+        save_json(cache_path, cache)
+        logger.info(
+            "Affiliation enrichment complete: %d papers updated, %d cached.",
+            updated, len(cache),
+        )
+        return updated
 
     # ------------------------------------------------------------------
     # Public workflow
@@ -416,13 +593,7 @@ class Scraper:
                     )
 
         if self.config.is_journal:
-            payload = {
-                "conference_name": self.config.conference_name,
-                "label": "Early Access",
-                "papers": all_early_access,
-            }
-            save_json(self._early_access_json_path(), payload)
-            logger.info("Saved %d Early Access papers to %s", len(all_early_access), self._early_access_json_path())
+            self._save_early_access(all_early_access, scraped_years=set(available))
 
 
 __all__ = ["Scraper"]

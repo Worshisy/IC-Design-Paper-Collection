@@ -1,0 +1,313 @@
+/* Shared styles for the year pages and the per-conference index.
+   Authored by Claude; see AGENTS.md for the authorship convention. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f7;
+  --bg-alt: #ffffff;
+  --bg-sunk: #eceef2;
+  --text: #111827;
+  --accent: #2563eb;
+  --border: #d1d5db;
+  --muted: #6b7280;
+  --star: #f59e0b;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+body.theme-dark {
+  --bg: #020617;
+  --bg-alt: #0b1220;
+  --bg-sunk: #060d1a;
+  --text: #e5e7eb;
+  --accent: #38bdf8;
+  --border: #1f2937;
+  --muted: #9ca3af;
+  --star: #fbbf24;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: clamp(0.6rem, 2vw, 1.2rem);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Full-width on big screens, gutters on small ones. */
+.container { width: 100%; max-width: 2200px; margin: 0 auto; }
+
+header { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+h1 { margin: 0; font-size: clamp(1.15rem, 2.2vw, 1.6rem); }
+h2 { margin: 0 0 0.5rem; font-size: clamp(1rem, 1.6vw, 1.15rem); }
+.muted { color: var(--muted); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.topbar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.topbar .spacer { margin-left: auto; }
+
+.pill-btn {
+  font-size: 0.75rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--muted);
+  cursor: pointer;
+}
+.pill-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.panel {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.6rem;
+  box-shadow: var(--shadow);
+}
+
+.summary { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.summary .big { font-size: 1.1rem; font-weight: 700; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.chip {
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+  background: var(--bg-sunk);
+  color: var(--text);
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--accent); text-decoration: none; }
+
+/* ---------- Controls ---------- */
+.controls { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+.control-group { display: flex; align-items: center; gap: 0.35rem; }
+.control-group > span { font-size: 0.75rem; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.seg button {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.6rem;
+  border: 0;
+  background: var(--bg-alt);
+  color: var(--muted);
+  cursor: pointer;
+}
+.seg button.active { background: var(--accent); color: #fff; }
+
+.search-input,
+.text-input,
+select.text-input {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg-alt);
+  color: var(--text);
+}
+.search-input:focus, .text-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* ---------- Paper list ---------- */
+/* A CSS grid, not a <table>: it reflows to one column on narrow screens and
+   never truncates a title, abstract or author list. */
+.paper-list { display: flex; flex-direction: column; gap: 0; }
+
+.list-head,
+.paper-row {
+  display: grid;
+  grid-template-columns: var(--col-num) var(--col-title) var(--col-abstract) var(--col-authors) var(--col-notes);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+:root,
+body {
+  --col-num: 4.5rem;
+  --col-title: minmax(14rem, 1.15fr);
+  --col-abstract: minmax(16rem, 1.6fr);
+  --col-authors: minmax(10rem, 0.8fr);
+  --col-notes: 13rem;
+}
+
+.list-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.list-head span { cursor: pointer; user-select: none; }
+.list-head span:hover { color: var(--text); }
+
+.session-row {
+  position: sticky;
+  top: 2.1rem;
+  z-index: 4;
+  background: var(--bg-sunk);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 0.35rem 0.6rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.session-row .tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-right: 0.5rem;
+}
+
+.paper-row {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+.paper-row:hover { background: var(--bg-sunk); }
+.paper-row.liked { box-shadow: inset 3px 0 0 var(--star); }
+
+.cell-num { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; color: var(--muted); }
+.cell-title { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.cell-abstract { font-size: 0.8rem; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.cell-authors { font-size: 0.8rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* Density changes type size and padding only - never clamps text. */
+body.density-small  .paper-row { font-size: 0.82rem; padding: 0.3rem 0.6rem; }
+body.density-small  .cell-abstract, body.density-small .cell-authors { font-size: 0.74rem; }
+body.density-medium .paper-row { font-size: 0.9rem; }
+body.density-large  .paper-row { font-size: 1rem; padding: 0.75rem 0.6rem; }
+body.density-large  .cell-abstract, body.density-large .cell-authors { font-size: 0.9rem; }
+
+/* Optional clamping, off by default, for skimming long lists. */
+body.clamp-on .cell-abstract {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/* ---------- Author affiliation tooltip ---------- */
+.author { position: relative; border-bottom: 1px dotted transparent; }
+.author.has-affil { border-bottom-color: var(--muted); cursor: help; }
+.author.has-affil:hover::after {
+  content: attr(data-affil);
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 0.3rem;
+  z-index: 50;
+  width: max-content;
+  max-width: min(28rem, 70vw);
+  white-space: normal;
+  background: var(--text);
+  color: var(--bg-alt);
+  font-size: 0.74rem;
+  line-height: 1.35;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+/* ---------- Annotations ---------- */
+.cell-notes { display: flex; flex-direction: column; gap: 0.25rem; }
+.note-controls { display: flex; align-items: center; gap: 0.3rem; }
+.star-btn {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  color: var(--border);
+}
+.star-btn.on { color: var(--star); }
+.mark-select {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: var(--bg-alt);
+  color: var(--text);
+  max-width: 7.5rem;
+}
+.note-input {
+  width: 100%;
+  font-size: 0.72rem;
+  font-family: inherit;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: var(--bg-alt);
+  color: var(--text);
+  resize: vertical;
+  min-height: 1.6rem;
+}
+.note-input::placeholder { color: var(--muted); opacity: 0.7; }
+.note-input:not(:focus):placeholder-shown { background: transparent; border-color: transparent; }
+.paper-row:hover .note-input:not(:focus):placeholder-shown { border-color: var(--border); }
+
+.sync-status { font-size: 0.72rem; color: var(--muted); }
+.sync-status.dirty { color: var(--star); }
+
+/* ---------- Responsive ---------- */
+/* Wide desktop: give abstracts the extra room. */
+@media (min-width: 1800px) {
+  body { --col-abstract: minmax(20rem, 2fr); --col-notes: 15rem; }
+}
+/* Laptop: drop the dedicated notes column into the authors cell area. */
+@media (max-width: 1250px) {
+  body { --col-num: 4rem; --col-notes: 11rem; }
+  .cell-abstract { font-size: 0.76rem; }
+}
+/* Tablet: no separate abstract column - it moves under the title. */
+@media (max-width: 1000px) {
+  body {
+    --col-num: 3.6rem;
+    --col-title: minmax(12rem, 1.4fr);
+    --col-abstract: 0;
+    --col-authors: minmax(9rem, 0.9fr);
+    --col-notes: 10rem;
+  }
+  .list-head .h-abstract { display: none; }
+  .list-head, .paper-row { grid-template-columns: var(--col-num) var(--col-title) var(--col-authors) var(--col-notes); }
+  .cell-abstract { grid-column: 2 / -1; margin-top: 0.3rem; }
+}
+/* Phone: one column, labelled stacked cards. */
+@media (max-width: 720px) {
+  .list-head { display: none; }
+  .list-head, .paper-row { grid-template-columns: 1fr; }
+  .paper-row { gap: 0.3rem; padding: 0.7rem 0.6rem; border-bottom-width: 2px; }
+  .cell-abstract { grid-column: auto; margin-top: 0; }
+  .cell-authors::before,
+  .cell-abstract::before {
+    display: block;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 0.1rem;
+  }
+  .cell-authors::before { content: "Authors"; }
+  .cell-abstract::before { content: "Abstract"; }
+  .session-row { top: 0; }
+  .cell-notes { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .note-input { flex: 1 1 100%; }
+}
+
+.no-results { padding: 2rem; text-align: center; color: var(--muted); }
+.hidden { display: none !important; }

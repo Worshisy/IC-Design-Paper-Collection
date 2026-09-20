@@ -1,0 +1,288 @@
+/* Shared behaviour for the year pages and the per-conference index:
+   theme, density, and the annotation store (like / mark / note).
+   Authored by Claude; see AGENTS.md for the authorship convention. */
+
+/* ---------- Theme ---------- */
+(function setupTheme() {
+  var toggle = document.getElementById("theme-toggle");
+  var KEY = "paperViewerTheme";
+  function apply(theme) {
+    document.body.classList.toggle("theme-dark", theme === "dark");
+    if (toggle) toggle.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+  }
+  var stored = null;
+  try { stored = localStorage.getItem(KEY); } catch (e) {}
+  var initial = stored || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  apply(initial);
+  if (toggle) {
+    toggle.addEventListener("click", function () {
+      var next = document.body.classList.contains("theme-dark") ? "light" : "dark";
+      apply(next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+    });
+  }
+})();
+
+/* ---------- Density + abstract clamping ---------- */
+(function setupDensity() {
+  var KEY = "paperViewerDensity";
+  var CLAMP_KEY = "paperViewerClamp";
+  var buttons = Array.prototype.slice.call(document.querySelectorAll(".density-btn"));
+  function applyDensity(d) {
+    document.body.classList.remove("density-small", "density-medium", "density-large");
+    document.body.classList.add("density-" + d);
+    buttons.forEach(function (b) { b.classList.toggle("active", b.dataset.density === d); });
+  }
+  var stored = null;
+  try { stored = localStorage.getItem(KEY); } catch (e) {}
+  applyDensity(stored || "medium");
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var d = btn.dataset.density || "medium";
+      applyDensity(d);
+      try { localStorage.setItem(KEY, d); } catch (e) {}
+    });
+  });
+
+  var clampBtn = document.getElementById("clamp-toggle");
+  function applyClamp(on) {
+    document.body.classList.toggle("clamp-on", on);
+    if (clampBtn) clampBtn.textContent = on ? "Show full abstracts" : "Shorten abstracts";
+  }
+  var clampStored = null;
+  try { clampStored = localStorage.getItem(CLAMP_KEY); } catch (e) {}
+  applyClamp(clampStored === "1");
+  if (clampBtn) {
+    clampBtn.addEventListener("click", function () {
+      var on = !document.body.classList.contains("clamp-on");
+      applyClamp(on);
+      try { localStorage.setItem(CLAMP_KEY, on ? "1" : "0"); } catch (e) {}
+    });
+  }
+})();
+
+/* ---------- Annotations: like / mark / note ----------
+   Kept entirely separate from the scraped dataset, so re-running the scraper
+   never touches them. Identity is the IEEE article number.
+
+   Storage, in precedence order when merging:
+     1. annotations.js next to this page (written by the sync script)
+     2. this browser's localStorage
+   The newer "updated" timestamp wins per paper. */
+window.Annotations = (function () {
+  var KEY = "paperAnnotations.v1";
+  var MARKS = ["", "to-read", "reading", "read", "important", "reference"];
+  var data = {};
+  var dirty = false;
+
+  function nowIso() { return new Date().toISOString(); }
+
+  function mergeInto(target, incoming) {
+    Object.keys(incoming || {}).forEach(function (id) {
+      var a = target[id];
+      var b = incoming[id];
+      if (!b) return;
+      if (!a || String(b.updated || "") > String(a.updated || "")) target[id] = b;
+    });
+    return target;
+  }
+
+  function isEmpty(entry) {
+    return !entry || (!entry.liked && !entry.mark && !(entry.note || "").trim());
+  }
+
+  function load() {
+    var local = {};
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) local = JSON.parse(raw) || {};
+    } catch (e) { local = {}; }
+    var seed = (window.ANNOTATIONS_SEED && window.ANNOTATIONS_SEED.papers) || {};
+    data = mergeInto(mergeInto({}, seed), local);
+    persistLocal();
+  }
+
+  function persistLocal() {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function get(id) { return data[id] || { liked: false, mark: "", note: "" }; }
+
+  function set(id, patch) {
+    if (!id) return;
+    var entry = Object.assign({ liked: false, mark: "", note: "" }, data[id] || {}, patch);
+    entry.updated = nowIso();
+    if (isEmpty(entry)) delete data[id]; else data[id] = entry;
+    persistLocal();
+    dirty = true;
+    updateStatus();
+    scheduleServerSave();
+  }
+
+  function count() { return Object.keys(data).length; }
+
+  function toJSON() {
+    return JSON.stringify({ version: 1, updated: nowIso(), papers: data }, null, 2);
+  }
+
+  /* Autosave works when the site is served over http (see serve.py).
+     Opened straight from disk (file://) it silently does nothing and the
+     Export button is the way out. */
+  var saveTimer = null;
+  function scheduleServerSave() {
+    if (location.protocol === "file:") return;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      fetch("/api/annotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: toJSON()
+      }).then(function (r) {
+        if (r.ok) { dirty = false; updateStatus("Saved"); }
+      }).catch(function () { /* no server: keep localStorage only */ });
+    }, 800);
+  }
+
+  function updateStatus(msg) {
+    var el = document.getElementById("sync-status");
+    if (!el) return;
+    var n = count();
+    el.textContent = msg ? msg : (n ? n + " marked" : "");
+    el.classList.toggle("dirty", dirty && location.protocol === "file:");
+  }
+
+  function exportFile() {
+    var blob = new Blob([toJSON()], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "annotations.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    dirty = false;
+    updateStatus("Exported");
+  }
+
+  function importFile(file, onDone) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var parsed = JSON.parse(String(reader.result));
+        mergeInto(data, parsed.papers || parsed);
+        persistLocal();
+        updateStatus("Imported");
+        if (onDone) onDone();
+      } catch (e) {
+        alert("Could not read that annotations file.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* Build the like / mark / note controls for one paper row. */
+  function buildControls(id) {
+    var wrap = document.createElement("div");
+    wrap.className = "cell-notes";
+    if (!id) return wrap;
+
+    var entry = get(id);
+    var row = document.createElement("div");
+    row.className = "note-controls";
+
+    var star = document.createElement("button");
+    star.type = "button";
+    star.className = "star-btn" + (entry.liked ? " on" : "");
+    star.title = "Like this paper";
+    star.textContent = entry.liked ? "★" : "☆";
+
+    var select = document.createElement("select");
+    select.className = "mark-select";
+    select.title = "Mark";
+    MARKS.forEach(function (m) {
+      var opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m === "" ? "- mark -" : m;
+      if (m === entry.mark) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    var note = document.createElement("textarea");
+    note.className = "note-input";
+    note.rows = 1;
+    note.placeholder = "note";
+    note.value = entry.note || "";
+
+    function reflectLiked() {
+      var paperRow = wrap.closest(".paper-row");
+      if (paperRow) paperRow.classList.toggle("liked", get(id).liked);
+    }
+
+    star.addEventListener("click", function () {
+      var liked = !get(id).liked;
+      set(id, { liked: liked });
+      star.classList.toggle("on", liked);
+      star.textContent = liked ? "★" : "☆";
+      reflectLiked();
+    });
+    select.addEventListener("change", function () { set(id, { mark: select.value }); });
+    note.addEventListener("change", function () { set(id, { note: note.value }); });
+    note.addEventListener("blur", function () { set(id, { note: note.value }); });
+
+    row.appendChild(star);
+    row.appendChild(select);
+    wrap.appendChild(row);
+    wrap.appendChild(note);
+    setTimeout(reflectLiked, 0);
+    return wrap;
+  }
+
+  load();
+
+  return {
+    get: get,
+    set: set,
+    count: count,
+    buildControls: buildControls,
+    exportFile: exportFile,
+    importFile: importFile,
+    updateStatus: updateStatus,
+    data: function () { return data; }
+  };
+})();
+
+/* Wire the shared export/import controls if the page has them. */
+(function setupAnnotationBar() {
+  var exportBtn = document.getElementById("annot-export");
+  var importBtn = document.getElementById("annot-import");
+  var importInput = document.getElementById("annot-import-input");
+  if (exportBtn) exportBtn.addEventListener("click", function () { window.Annotations.exportFile(); });
+  if (importBtn && importInput) {
+    importBtn.addEventListener("click", function () { importInput.click(); });
+    importInput.addEventListener("change", function () {
+      if (importInput.files && importInput.files[0]) {
+        window.Annotations.importFile(importInput.files[0], function () { location.reload(); });
+      }
+    });
+  }
+  window.Annotations.updateStatus();
+})();
+
+/* Render author names with an affiliation tooltip.
+   affils is index-aligned with names; entries may be empty. */
+window.renderAuthors = function (names, affils) {
+  var frag = document.createDocumentFragment();
+  (names || []).forEach(function (name, i) {
+    var affil = (affils && affils[i]) || "";
+    var span = document.createElement("span");
+    span.className = "author" + (affil ? " has-affil" : "");
+    if (affil) {
+      span.setAttribute("data-affil", affil);
+      span.title = affil;
+    }
+    span.textContent = name;
+    frag.appendChild(span);
+    if (i < names.length - 1) frag.appendChild(document.createTextNode("; "));
+  });
+  return frag;
+};
