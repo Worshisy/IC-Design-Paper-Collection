@@ -1,5 +1,17 @@
 # DEV LOG - IEEE Xplore Scraper
 
+> **Superseded (2026-09-20).** This log predates the documentation rework and
+> is kept for history. Current references:
+> [`AGENTS.md`](AGENTS.md) (workspace state, hard rules, gotchas),
+> [`docs/`](docs/README.md) (architecture, sources, parsing rules, viewer,
+> operations) and [`CODEMAP.md`](CODEMAP.md).
+>
+> Several statements below are now **out of date** - notably the paper counts
+> (front matter is filtered since 2026-09-20), the claim that only session
+> parsing was fixed for ISSCC, and the absence of the rate limiter, the marks
+> system and the affiliation pass.
+
+
 This file is a maintenance log + implementation guide for future agent edits.
 It captures how the project currently works, what changed over time, and where
 to modify behavior safely.

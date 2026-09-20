@@ -1,7 +1,12 @@
-# Generated data + site — large, regenerable, shared via iCloud instead of git.
+# Generated data + site: large, regenerable, shared via iCloud instead of git.
 output/
 site/
 cache/
+
+# Your marks (likes / marks / notes). Personal data, synced through iCloud
+# rather than git, so the repo never carries a merge conflict over it.
+# Track it instead if you want a second sync path - see ONGOING.md.
+userdata/
 
 # Python
 __pycache__/
