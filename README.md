@@ -80,8 +80,12 @@ log_paper/
 └── cache/<source>/                  affiliation cache    (not in git)
 ```
 
-`output/`, `site/` and `cache/` are ~400 MB of regenerable data and are
-git-ignored on purpose — the dataset travels via iCloud, the code via GitHub.
+**The GitHub repo holds scripts and docs only — never the dataset.**
+`output/`, `site/`, `cache/` and `userdata/` are git-ignored deliberately:
+they contain IEEE paper metadata and abstracts, which must not be
+republished publicly. The data stays private and syncs through iCloud; the
+code syncs through GitHub. Anyone cloning the repo regenerates the dataset
+themselves with `update.bat --full`.
 
 ## Setup on a new machine
 

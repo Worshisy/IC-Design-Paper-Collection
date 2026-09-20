@@ -1,4 +1,8 @@
-# Generated data + site: large, regenerable, shared via iCloud instead of git.
+# NEVER COMMIT THE DATASET.
+# output/ and site/ contain IEEE paper metadata and abstracts. Republishing
+# that on a public GitHub repo is a copyright problem, so the repo carries
+# SCRIPTS ONLY. The dataset is private and travels via iCloud.
+# (It is also ~400 MB and fully regenerable by running update.bat.)
 output/
 site/
 cache/

@@ -63,8 +63,12 @@ before 2026-09-20) · ✏️ Yi's data/edits · ✍️ Claude-authored.
    there, keyed by IEEE article number. No scrape, rebuild or sync may
    overwrite it — merge per paper, newest `updated` timestamp wins. It is the
    one file a database refresh must leave alone.
-2. **Never commit `output/`, `site/`, `cache/` or the PDFs.** ~400 MB of
-   regenerable data; `.gitignore` covers them. The dataset travels via iCloud.
+2. **Never commit the dataset — `output/`, `site/`, `cache/`, `userdata/` or
+   the PDFs.** This is a *legal* constraint, not a size one: those trees hold
+   IEEE paper metadata and abstracts, and republishing them in a public
+   GitHub repo is a copyright problem. **The repo is scripts and docs only.**
+   The dataset stays private and travels via iCloud, and is regenerable with
+   `update.bat`. Before any push, confirm `git status` shows no data files.
 3. **iCloud writes are expensive.** Sync runs once, as the last step, and
    copies only files whose content hash changed. Do not add per-year or
    per-source syncing.
