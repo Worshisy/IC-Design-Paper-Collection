@@ -92,8 +92,27 @@ def sync_annotations_in(icloud_root: Path | None) -> int:
     local = annotations_path()
     remote = (icloud_root / "userdata" / "annotations.json") if icloud_root else None
     merged = _merge_annotation_files(local, remote)
-    save_json(local, {"version": 1, "updated": dt.datetime.now().isoformat(), "papers": merged})
-    logger.info("Annotations: %d marked papers (merged local + iCloud).", len(merged))
+
+    # Only rewrite when the marks actually changed. Stamping a fresh timestamp
+    # every run would alter this file and all nine annotations.js seeds, and
+    # hand iCloud ten pointless writes on every update.
+    existing: Dict[str, Any] = {}
+    if local.exists():
+        try:
+            loaded = load_json(local)
+            if isinstance(loaded, dict) and isinstance(loaded.get("papers"), dict):
+                existing = loaded["papers"]
+        except (OSError, ValueError):
+            existing = {}
+
+    if existing != merged:
+        save_json(
+            local,
+            {"version": 1, "updated": dt.datetime.now().isoformat(), "papers": merged},
+        )
+        logger.info("Annotations: %d marked papers (updated).", len(merged))
+    else:
+        logger.info("Annotations: %d marked papers (unchanged).", len(merged))
     return len(merged)
 
 
@@ -176,17 +195,38 @@ def _digest(path: Path) -> str:
     return h.hexdigest()
 
 
-def _needs_copy(src: Path, dst: Path) -> bool:
-    """Copy only when content really differs - iCloud dislikes churn."""
+# What we last copied to iCloud: destination path -> source content hash.
+# Without it, deciding "has this changed?" means hashing the iCloud copy, and
+# reading ~107 MB back out of iCloud takes minutes because files may be
+# dehydrated placeholders that have to be downloaded first.
+MANIFEST_PATH = PROJECT_ROOT / "cache" / "icloud_manifest.json"
 
+
+def _load_manifest() -> Dict[str, str]:
+    if not MANIFEST_PATH.exists():
+        return {}
+    try:
+        loaded = load_json(MANIFEST_PATH)
+        return loaded if isinstance(loaded, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _needs_copy(src: Path, dst: Path, manifest: Dict[str, str], key: str) -> Tuple[bool, str]:
+    """
+    Decide whether to copy, without reading the iCloud copy back.
+
+    The local hash is cheap; the remote one is not. A file is copied when we
+    have no record of it, when the record disagrees with the local content, or
+    when it is missing at the destination (a cheap stat, not a read).
+    """
+
+    digest = _digest(src)
+    if manifest.get(key) != digest:
+        return True, digest
     if not dst.exists():
-        return True
-    src_stat, dst_stat = src.stat(), dst.stat()
-    if src_stat.st_size != dst_stat.st_size:
-        return True
-    # Same size: compare content rather than trusting timestamps, which a
-    # rebuild rewrites even when the bytes are identical.
-    return _digest(src) != _digest(dst)
+        return True, digest
+    return False, digest
 
 
 # Where each local tree lands inside the iCloud folder. The browsable site
@@ -205,6 +245,7 @@ def sync_to_icloud(icloud_root: Path, trees: Iterable[str]) -> Dict[str, int]:
 
     stats = {"copied": 0, "skipped": 0, "bytes": 0}
     icloud_root.mkdir(parents=True, exist_ok=True)
+    manifest = _load_manifest()
 
     for tree in trees:
         src_root = PROJECT_ROOT / tree
@@ -215,15 +256,21 @@ def sync_to_icloud(icloud_root: Path, trees: Iterable[str]) -> Dict[str, int]:
         for src in src_root.rglob("*"):
             if not src.is_file():
                 continue
-            dst = base / src.relative_to(src_root)
-            if _needs_copy(src, dst):
+            relative = src.relative_to(src_root)
+            dst = base / relative
+            key = f"{destination}/{relative.as_posix()}" if destination else relative.as_posix()
+
+            changed, digest = _needs_copy(src, dst, manifest, key)
+            if changed:
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
+                manifest[key] = digest
                 stats["copied"] += 1
                 stats["bytes"] += src.stat().st_size
             else:
                 stats["skipped"] += 1
 
+    save_json(MANIFEST_PATH, manifest)
     logger.info(
         "iCloud sync: %d changed files copied (%.1f MB), %d unchanged left alone.",
         stats["copied"], stats["bytes"] / 1_048_576, stats["skipped"],

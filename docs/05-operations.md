@@ -62,12 +62,23 @@ until you press **Export marks** (see `04-viewer-and-marks.md`).
 Target: `C:\Users\Yi Shen\iCloudDrive\IC_Design_Materials\Paper_Collection`
 
 - Synced by default: `site/` (the browsable viewer) and `userdata/`
-  (your marks). Add `--sync-data` to include `output/`.
-- **Changed files only.** Every candidate is compared by content hash
-  (size first, then BLAKE2b), so a rebuild that produces byte-identical HTML
-  copies nothing. This is deliberate: handing iCloud tens of thousands of
-  no-op writes is how sync conflicts start.
+  (your marks). Add `--sync-data` to include `output/` (JSON + CSV, ~290 MB).
+- **Layout**: the site goes to the **root** of the iCloud folder
+  (`Paper_Collection/isscc/…`, `Paper_Collection/index.html`), matching the
+  layout already in use there. Marks go to `Paper_Collection/userdata/`.
+- **Changed files only, decided locally.** Each file's hash is compared
+  against `cache/icloud_manifest.json` — a record of what was last copied —
+  so an unchanged file is never even read back from iCloud. That matters:
+  hashing the 107 MB site *out of* iCloud takes minutes, because files may be
+  dehydrated placeholders that have to be downloaded first.
+- **A run with no real changes copies nothing.** Verified: 0 files copied,
+  253 left alone. `annotations.json` is only rewritten when a mark actually
+  changes — stamping it with a fresh timestamp each run would alter it plus
+  all nine `annotations.js` seeds, handing iCloud ten pointless writes every
+  time.
 - The copy runs **once, at the end** — never per source or per year.
+- If iCloud ever gets out of step (files deleted there by hand), delete
+  `cache/icloud_manifest.json` and the next run re-copies everything.
 
 ## Running the tools directly
 
