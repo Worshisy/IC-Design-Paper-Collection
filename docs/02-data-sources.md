@@ -94,12 +94,24 @@ normal paper.
 
 ## Dataset size
 
-Numbers below are read from each source's `validation_summary.csv` after the
-full rebuild on **2026-09-20**, which is the first build with front-matter
-filtering applied.
+Read from each source's `validation_summary.json` after the 2026-09-20
+rebuild. "Sessions / issues" counts real sessions for ISSCC and issues for the
+journals; RFIC, VLSI and CICC mostly report one `"General"` session per year.
+CICC 2016 is absent because IEEE does not index it.
 
 <!-- DATASET-TABLE-START -->
-*(filled in by the rebuild — see the table below)*
+| Source | Kind | Years | Count | Papers | Sessions / issues | No abstract |
+|---|---|---|---|---|---|---|
+| **ISSCC** | conference | 2000–2026 | 27 | 6,203 | 652 | 143 |
+| **RFIC** | conference | 2000–2026 | 27 | 3,209 | 51 | 7 |
+| **CICC** | conference | 2000–2026 | 26 | 3,704 | 111 | 34 |
+| **VLSI** | conference | 2000–2025 | 26 | 5,212 | 78 | 8 |
+| **JSSC** | journal | 1995–2026 | 32 | 9,278 | 381 | 149 |
+| **SSCL** | journal | 2018–2026 | 9 | 753 | 31 | 0 |
+| **TCAS-I** | journal | 2000–2026 | 27 | 9,085 | 320 | 62 |
+| **TCAS-II** | journal | 2000–2026 | 27 | 9,386 | 321 | 28 |
+| **TMTT** | journal | 2000–2026 | 27 | 12,633 | 321 | 72 |
+| **Total** | | | | **59,463** | **2,266** | |
 <!-- DATASET-TABLE-END -->
 
 Session counts are only meaningful for ISSCC (real sessions) and the journals

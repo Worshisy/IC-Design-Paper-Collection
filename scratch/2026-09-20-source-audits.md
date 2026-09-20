@@ -83,3 +83,61 @@ at the hyphen. Caught by `tools/audit_front_matter.py`, which is why the
 `^registration\s+(desk|information|form|fees?|page|hours)`.
 
 The unit set grew 44 → 75 cases and the sweep is now abstract-aware.
+
+
+---
+
+# All nine sources audited (final)
+
+One agent per source read every title. Everything below was re-measured before
+acting, and re-verified after the fix by an offline `--reparse`.
+
+## Corpus-wide results
+
+| Defect | Before | After |
+|---|---|---|
+| Legacy `/spl …/` in titles | 8,749 (titles+abstracts) | **3** |
+| Legacy `/spl …/` in abstracts | — | 91, all truncated by IEEE mid-token (unconvertible) |
+| HTML entities stored encoded | 2,768 | **0** |
+| Advertisement records counted as papers | 222+ | **0** |
+| Journal years with out-of-order issues | many | **0** |
+| Journal years with a duplicated issue label | 67 (TMTT) | **0** |
+| Simple `$\Delta\Sigma$` LaTeX spans in titles | — | **0** (converted; complex spans left to MathJax) |
+
+Final dataset: **59,463 papers**, 2,266 sessions/issues, 9 sources.
+
+## Coverage gaps the audits exposed
+
+| Gap | Cause | Outcome |
+|---|---|---|
+| TCAS-I + TCAS-II 2000–2003 empty | Renamed in 2004; pre-2004 volumes are separate publications (`81`, `82`). Querying the configured punumber returned 0 records **silently** | +1,443 papers |
+| CICC 2010 absent | Indexed as "IEEE Custom Integrated Circuits Conference 2010"; the search term "CICC" never matched | recovered |
+| JSSC pre-2000 | Not previously scraped | +1,260 papers (1995–1999), per-source `first_year` |
+| CICC 2016 | Genuinely not in IEEE Xplore (probed four ways; 2017 control works) | documented, not fixable |
+| TCAS-I 2008 Issue 12 | Absent from IEEE's own response | documented |
+
+## Signals that turned out to matter
+
+- **The abstract, not the title, identifies front matter.** IEEE writes fixed
+  boilerplate: `"Advertisement…"`, `"Provides notice of upcoming conference
+  events…"`, `"Presents a listing of the editorial board…"`. A masthead titled
+  only `"IEEE JOURNAL OF SOLID-STATE CIRCUITS"` gives no title clue at all.
+- **Prefix-match, never substring, for common words.** `"advertisement"`
+  appearing *anywhere* in an abstract would delete real papers; an abstract
+  that *begins* with it is always an advert.
+- **IEEE promo records from 2023 on carry no abstract**, so the prefix rule
+  cannot see them — those need an explicit title list ("TechRxiv…",
+  "Introducing IEEE Collabratec", and its corrupted twin "…Collabratex").
+
+## Deliberately left alone
+
+- **Raw LaTeX in titles/abstracts.** MathJax renders `$…$` in the page. Only
+  spans consisting purely of simple commands are converted to Unicode (better
+  for search); anything with braces, sub/superscripts or unknown macros is
+  left untouched, because converting it would render *worse* than MathJax.
+- **Session reconstruction for CICC/RFIC/VLSI.** Measured, 4 false positives
+  on real ISSCC papers. Not worth a dropped paper.
+- **IEEE's own corrupt metadata**: CICC 2004 session names
+  (`"Analoa technigues"`), a 2009 JSSC title in broken lowercase, `"lt;"`
+  fragments from mangled `&lt;`, `"Technology Technical Sessoin"`. Silently
+  "correcting" source data would be worse than showing it.

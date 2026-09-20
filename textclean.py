@@ -60,6 +60,10 @@ SPL_ENTITIES: dict[str, str] = {
     "lscr": "ℓ", "Bscr": "ℬ", "Cscr": "\U0001d49e", "Escr": "ℰ",
     "Fscr": "ℱ", "Hscr": "ℋ", "Lscr": "ℒ", "Mscr": "ℳ",
     "Rscr": "ℛ",
+    # Blackboard-bold and accents seen in TCAS-I 2000-2003.
+    "Ropf": "ℝ", "Copf": "ℂ", "Nopf": "ℕ", "Zopf": "ℤ", "Qopf": "ℚ",
+    "dot": "˙", "ddot": "¨", "breve": "˘", "bar": "¯",
+    "vert": "|", "verbar": "|", "lowbar": "_", "commat": "@",
 }
 
 _SUPERSCRIPTS = {
@@ -117,6 +121,61 @@ def _render_supsub(match: re.Match[str]) -> str:
     return ("^" if kind == "sup" else "_") + raw
 
 
+_INLINE_TAG_RE = re.compile(r"</?(italic|bold|b|i|em|strong|inf|sub|sup|roman|monospace)>", re.IGNORECASE)
+_SUB_TAG_RE = re.compile(r"<(sub|inf)>(.*?)</(?:sub|inf)>", re.IGNORECASE | re.DOTALL)
+_SUP_TAG_RE = re.compile(r"<sup>(.*?)</sup>", re.IGNORECASE | re.DOTALL)
+
+
+def _strip_inline_tags(text: str) -> str:
+    """
+    Render IEEE's inline markup as text.
+
+    A handful of titles carry real <italic>/<sub> markup. With autoescape on
+    these would display as literal tags, so subscripts and superscripts become
+    real characters where possible and the remaining tags are dropped.
+    """
+
+    text = _SUB_TAG_RE.sub(lambda m: _render_supsub_value("sub", m.group(2)), text)
+    text = _SUP_TAG_RE.sub(lambda m: _render_supsub_value("sup", m.group(1)), text)
+    return _INLINE_TAG_RE.sub("", text)
+
+
+def _render_supsub_value(kind: str, raw: str) -> str:
+    table = _SUPERSCRIPTS if kind == "sup" else _SUBSCRIPTS
+    raw = raw.strip()
+    if raw and all(character in table for character in raw):
+        return "".join(table[character] for character in raw)
+    if kind == "sup" and raw.lower() in _ORDINALS:
+        return raw
+    return ("^" if kind == "sup" else "_") + raw
+
+
+_LATEX_SIMPLE = {
+    "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε",
+    "varepsilon": "ε", "zeta": "ζ", "eta": "η", "theta": "θ", "iota": "ι",
+    "kappa": "κ", "lambda": "λ", "mu": "µ", "nu": "ν", "xi": "ξ", "pi": "π",
+    "rho": "ρ", "sigma": "σ", "tau": "τ", "upsilon": "υ", "phi": "φ",
+    "varphi": "φ", "chi": "χ", "psi": "ψ", "omega": "ω",
+    "Gamma": "Γ", "Delta": "Δ", "Theta": "Θ", "Lambda": "Λ", "Xi": "Ξ",
+    "Pi": "Π", "Sigma": "Σ", "Phi": "Φ", "Psi": "Ψ", "Omega": "Ω",
+    "times": "×", "pm": "±", "mp": "∓", "cdot": "·", "approx": "≈",
+    "leq": "≤", "geq": "≥", "neq": "≠", "sim": "∼", "infty": "∞",
+    "rightarrow": "→", "leftarrow": "←", "to": "→", "degree": "°",
+    "circ": "°", "ohm": "Ω", "micro": "µ",
+}
+
+# "$\Delta\Sigma$", "$\mu$", "$\pm$" - commands and spaces only, nothing else.
+_LATEX_SPAN_RE = re.compile(r"\$((?:\s*\\[A-Za-z]+\s*)+)\$")
+
+
+def _render_latex_span(match: "re.Match[str]") -> str:
+    body = match.group(1)
+    names = re.findall(r"\\([A-Za-z]+)", body)
+    if not names or any(name not in _LATEX_SIMPLE for name in names):
+        return match.group(0)  # leave it for MathJax
+    return "".join(_LATEX_SIMPLE[name] for name in names)
+
+
 def clean_text(text: str | None) -> str:
     """Decode entities and convert legacy IEEE markup to real characters."""
 
@@ -130,6 +189,12 @@ def clean_text(text: str | None) -> str:
         once_more = html.unescape(cleaned)
         if once_more != cleaned:
             cleaned = once_more
+
+    if "<" in cleaned:
+        cleaned = _strip_inline_tags(cleaned)
+
+    if "$" in cleaned:
+        cleaned = _LATEX_SPAN_RE.sub(_render_latex_span, cleaned)
 
     cleaned = _SPL_RE.sub(_render_spl, cleaned)
     cleaned = _SUPSUB_RE.sub(_render_supsub, cleaned)

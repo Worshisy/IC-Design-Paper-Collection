@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -282,6 +283,7 @@ class Scraper:
                             "authors": p.get("authors", []),
                             "paper_url": p.get("paper_url") or "",
                             "doi": p.get("doi"),
+                            "article_number": p.get("article_number"),
                             "conference_name": p.get("conference_name"),
                             "conference_dates": p.get("conference_dates"),
                         }
@@ -530,9 +532,78 @@ class Scraper:
 
         if self.config.is_journal and years:
             self._save_early_access(all_early, scraped_years=set(years))
+            self._prune_published_early_access()
 
         logger.info("%s: re-parsed %d cached years.", self.config.conference_name, rebuilt)
         return rebuilt
+
+    @staticmethod
+    def _paper_keys(paper: Dict[str, Any]) -> List[str]:
+        """Identity keys for matching a paper across Early Access and issues."""
+
+        keys: List[str] = []
+        article_number = str(paper.get("article_number") or "").strip()
+        if article_number:
+            keys.append(f"id:{article_number}")
+        doi = str(paper.get("doi") or "").strip().lower()
+        if doi:
+            keys.append(f"doi:{doi}")
+        title = re.sub(r"\W+", " ", str(paper.get("title") or "").lower()).strip()
+        if title:
+            keys.append(f"t:{title}")
+        return keys
+
+    def _prune_published_early_access(self) -> int:
+        """
+        Drop Early Access entries that now appear in a real issue.
+
+        IEEE moves a paper out of Early Access once it is assigned to an issue.
+        Without this, an incremental update keeps the stale Early Access copy
+        forever and the paper shows up twice - once under Early Access and once
+        under its published issue.
+
+        Returns the number of entries removed.
+        """
+
+        path = self._early_access_json_path()
+        if not path.exists():
+            return 0
+        try:
+            payload = load_json(path)
+        except (OSError, ValueError) as exc:
+            logger.warning("Early Access file unreadable, skipping prune: %s", exc)
+            return 0
+
+        papers = payload.get("papers") or []
+        if not papers:
+            return 0
+
+        # Every paper that now lives in a normal year file.
+        published: set[str] = set()
+        for year_path in self.config.json_dir.glob("*.json"):
+            if not year_path.stem.isdigit():
+                continue
+            try:
+                year_data = load_json(year_path)
+            except (OSError, ValueError):
+                continue
+            for session in year_data.get("sessions", []):
+                for paper in session.get("papers", []):
+                    published.update(self._paper_keys(paper))
+
+        if not published:
+            return 0
+
+        kept = [p for p in papers if not any(k in published for k in self._paper_keys(p))]
+        removed = len(papers) - len(kept)
+        if removed:
+            payload["papers"] = kept
+            save_json(path, payload)
+            logger.info(
+                "Early Access: dropped %d entr%s now published in a real issue (%d remain).",
+                removed, "y" if removed == 1 else "ies", len(kept),
+            )
+        return removed
 
     # ------------------------------------------------------------------
     # Author affiliations (one extra request per paper)
@@ -709,6 +780,8 @@ class Scraper:
                 all_early_access,
                 scraped_years=set(available) - set(failed_years),
             )
+            # A paper leaves Early Access when IEEE assigns it an issue.
+            self._prune_published_early_access()
 
         if failed_years:
             logger.warning(

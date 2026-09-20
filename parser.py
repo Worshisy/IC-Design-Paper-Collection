@@ -94,6 +94,25 @@ SKIP_TITLES = frozenset({
     "monday poster session", "tuesday poster session", "wednesday poster session",
     "index author", "detailed author index", "brief author index",
     "hub page", "opinion", "teaser abstract", "breaker page",
+    # IEEE house adverts. Recent ones carry no abstract at all, so the
+    # "Advertisement:" prefix rule cannot see them.
+    "myieee", "join ieee", "ieee access", "ieee dataport", "open access",
+    "ieee open access publishing", "ieee xplore digital library",
+    "introducing ieee collabratec", "introducing ieee collabratex",
+    "ieee order form for reprints", "women in engineering",
+    "ieee women in engineering", "ieee woen in engineering",
+    "connect. support. inspire.", "thank you for your authorship",
+    "together, we are advancing technology",
+    "put your technology leadership in writing",
+    "how can you get your idea to market first",
+    "ieee foundation", "proceedings of the ieee",
+    "member get-a-member (mgm) program",
+    # Conference logistics pages (VLSI symposia in particular).
+    "program", "floor map", "session quick index", "conference schedule",
+    "rump sessions", "acknowledgement", "acknowledgment", "preface",
+    "landing page", "ataglance", "at a glance", "society related material",
+    "plenary session", "panel discussion program", "special workshop program",
+    "demo session & reception", "evening panel discussion",
 })
 
 # Title prefixes that indicate non-paper entries.
@@ -167,7 +186,17 @@ SKIP_PATTERNS = (
     re.compile(r"title page\]?$", re.IGNORECASE),
     re.compile(r"^steering committee\b", re.IGNORECASE),
     re.compile(r"^copyright\b", re.IGNORECASE),
-    re.compile(r"^\d{4}\s+index\b", re.IGNORECASE),
+    re.compile(r"^\d{4}\s*index\b", re.IGNORECASE),
+    re.compile(r"^patents?\s+abstracts?$", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+ieee\s+membership\s+form", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+reviewers?\s+list$", re.IGNORECASE),
+    re.compile(r"^techrxiv\b", re.IGNORECASE),
+    re.compile(r"^short\s+course\s*\d*$", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+symposium\s+on\s+vlsi", re.IGNORECASE),
+    re.compile(r"\btechnical\s+sess(?:ion|oin)s?$", re.IGNORECASE),
+    re.compile(r"\blist of reviewers\b", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+list of reviewers", re.IGNORECASE),
+    re.compile(r"^(?:first|second|final)\s+(?:announcement\s+and\s+)?call\s+for\s+papers", re.IGNORECASE),
     # Programme items that are not authored papers: forums, panels, evening
     # events, social events, tutorials round-ups, short courses.
     re.compile(r"^(?:f|ee|se|sc|t)\d+\s*:", re.IGNORECASE),
@@ -224,6 +253,23 @@ FRONT_MATTER_ABSTRACTS = (
     "presents a listing of the current",
 )
 
+# Abstracts that START with one of these are never papers. IEEE writes them
+# verbatim for adverts, conference notices and special-issue calls; matching
+# the prefix rather than a substring keeps a real abstract that merely uses the
+# word "advertisement" safe.
+FRONT_MATTER_ABSTRACT_PREFIXES = (
+    "advertisement",
+    "provides notice of upcoming conference",
+    "provides notice of upcoming special issue",
+    "provides a listing of the editors",
+    "provides a listing of current staff",
+    "presents a listing of the editorial board",
+    "lists the reviewers who contributed",
+    "the publication offers a note of thanks and lists its reviewers",
+    "presents the front cover",
+    "presents the back cover",
+)
+
 # Used only for short titles: one real paper (a 2018 CICC terahertz radio)
 # carries this auto-generated keyword-list abstract, and must not be dropped.
 KEYWORD_LIST_ABSTRACT = "the following topics are dealt with"
@@ -275,6 +321,8 @@ def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
         return False
 
     head = abstract[:160]
+    if abstract.startswith(FRONT_MATTER_ABSTRACT_PREFIXES):
+        return True
     if any(marker in head for marker in FRONT_MATTER_ABSTRACTS):
         return True
     # Auto-generated keyword lists mark front matter, except on a real paper -
@@ -700,6 +748,9 @@ def build_conference_year_from_api(
         if sessions:
             sessions.sort(key=lambda s: s.session_number)
 
+    if group_by_issue:
+        _sort_sessions_by_issue(sessions)
+
     conference = ConferenceYear(
         year=year,
         proceedings_url=proceedings_url,
@@ -712,6 +763,51 @@ def build_conference_year_from_api(
     _deduplicate_papers(conference)
     _validate_conference_year(conference)
     return conference
+
+
+def _sort_sessions_by_issue(sessions: List[Session]) -> None:
+    """
+    Put journal issues in calendar order and renumber them.
+
+    The API returns December first in several years (JSSC 2002/2003/2021,
+    TCAS-II 2019-2025), which left issues out of order on the page and made
+    each paper's "<session>.<n>" prefix disagree with the issue it sits in.
+    Early Access stays last whatever its key.
+    """
+
+    def key(session: Session) -> Tuple[int, float, float]:
+        name = session.session_name or ""
+        if name.lower().startswith("early"):
+            return (1, 0.0, 0.0)
+        volume = re.search(r"Vol\.\s*(\d+)", name)
+        issue = re.search(r"Issue\s*(\d+)", name)
+        return (
+            0,
+            float(volume.group(1)) if volume else float("inf"),
+            float(issue.group(1)) if issue else float("inf"),
+        )
+
+    sessions.sort(key=key)
+
+    # TMTT returns some issues as two separate batches under one label; fold
+    # them back together so an issue appears once.
+    merged: List[Session] = []
+    for session in sessions:
+        if merged and merged[-1].session_name == session.session_name:
+            merged[-1].papers.extend(session.papers)
+            continue
+        merged.append(session)
+    sessions[:] = merged
+
+    for position, session in enumerate(sessions, start=1):
+        session.session_number = position
+        session.session_code = str(position)
+        for index, paper in enumerate(session.papers, start=1):
+            number = f"{position}.{index}"
+            paper.session_number = position
+            paper.session_name = session.session_name
+            paper.paper_number = number
+            paper.inferred_paper_number = number
 
 
 def _deduplicate_papers(conference: ConferenceYear) -> None:

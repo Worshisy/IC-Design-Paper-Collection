@@ -65,8 +65,10 @@ def _validate_year(
         logger.error("Year value is not an integer: %r", year)
         year_int = -1
 
-    if year_int < 2000:
-        logger.error("Invalid year %r (must be >= 2000)", year_int)
+    # 1990 is a floor for "obviously not a year", not a coverage policy:
+    # each source sets its own first year (config first_year; JSSC is 1995).
+    if year_int < 1990:
+        logger.error("Implausible year %r", year_int)
 
     sessions = year_data.get("sessions", [])
     num_sessions = len(sessions)

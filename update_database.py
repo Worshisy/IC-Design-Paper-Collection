@@ -54,6 +54,7 @@ ICLOUD_DEFAULT = Path.home() / "iCloudDrive" / "IC_Design_Materials" / "Paper_Co
 # Years still being revised by IEEE. Older years are effectively frozen, so a
 # routine update only re-fetches this window.
 RECENT_YEARS = 2
+# Default earliest year; a source can override it (config first_year).
 FIRST_YEAR = 2000
 
 
@@ -100,20 +101,23 @@ def sync_annotations_in(icloud_root: Path | None) -> int:
 # Scrape / validate / build
 # ----------------------------------------------------------------------
 
-def years_to_refresh(cfg_json_dir: Path, full: bool, this_year: int) -> Tuple[int, int, List[int]]:
+def years_to_refresh(
+    cfg_json_dir: Path, full: bool, this_year: int, first_year: int = FIRST_YEAR
+) -> Tuple[int, int, List[int]]:
     """
     Return (start, end, missing_years).
 
     Recent years are always re-fetched; older years only if their JSON is absent.
+    first_year comes from the source's own config (JSSC starts at 1995).
     """
 
     end = this_year + 1
     if full:
-        return FIRST_YEAR, end, []
+        return first_year, end, []
 
     start = this_year - RECENT_YEARS
     present = {int(p.stem) for p in cfg_json_dir.glob("*.json") if p.stem.isdigit()}
-    missing = [y for y in range(FIRST_YEAR, start) if y not in present]
+    missing = [y for y in range(first_year, start) if y not in present]
     return start, end, missing
 
 
@@ -128,7 +132,7 @@ def update_source(
     logger.info("Source: %s", cfg.conference_name)
     logger.info("=" * 62)
 
-    start, end, missing = years_to_refresh(cfg.json_dir, full, this_year)
+    start, end, missing = years_to_refresh(cfg.json_dir, full, this_year, cfg.year_min)
 
     # Recent years: always re-fetch, records still change.
     Scraper(config=cfg, overwrite=True).scrape_year_range(start_year=start, end_year=end)

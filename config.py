@@ -31,6 +31,8 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         "title_contains": "journal of solid-state circuits",
         "is_journal": True,
         "fixed_punumber": "4",
+        # Yi asked for JSSC back to 1995; every other source starts at 2000.
+        "first_year": 1995,
     },
     "sscl": {
         "name": "SSCL",
@@ -110,6 +112,7 @@ class ScraperConfig:
     conference_id: str = "isscc"
     base_url: str = "https://ieeexplore.ieee.org"
     search_api_url: str = "https://ieeexplore.ieee.org/rest/search"
+    # Earliest year this source is scraped from; per-source, see first_year.
     year_min: int = 2000
 
     # Conference-specific (set by get_config from CONFERENCES).
@@ -183,6 +186,7 @@ def get_config(conference_id: str = "isscc", create_dirs: bool = True) -> Scrape
     cache = root / "cache" / conference_id
     cfg = ScraperConfig(
         conference_id=conference_id,
+        year_min=int(conf.get("first_year", 2000)),
         conference_name=conf["name"],
         search_term=conf["search_term"],
         title_contains=conf["title_contains"],
