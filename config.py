@@ -44,14 +44,21 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         "search_term": "TCAS-I",
         "title_contains": "transactions on circuits and systems i",
         "is_journal": True,
+        # "Regular Papers" from 2004. Before that the journal was
+        # "Fundamental Theory and Applications", a different publication
+        # (81) - punumber 8919 returns zero records for those years.
         "fixed_punumber": "8919",
+        "year_pub_overrides": {year: ["81"] for year in range(2000, 2004)},
     },
     "tcas2": {
         "name": "TCAS-II",
         "search_term": "TCAS-II",
         "title_contains": "transactions on circuits and systems ii",
         "is_journal": True,
+        # "Express Briefs" from 2004; before that "Analog and Digital Signal
+        # Processing", publication 82.
         "fixed_punumber": "8920",
+        "year_pub_overrides": {year: ["82"] for year in range(2000, 2004)},
     },
     "tmtt": {
         "name": "TMTT",

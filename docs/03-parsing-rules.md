@@ -136,8 +136,10 @@ entirely for that source.
 Journals set `group_by_issue=True` and group by `(volume, issue, isNumber)`:
 
 - `volume` and `issue` present -> `"Vol. 61, Issue 3"`
-- `volume` only -> `"Vol. 9"` (SSCL publishes continuously, with no issue
-  numbers — every 2026 record carries `issue: null`)
+- `volume` only -> `"Vol. 9"`. SSCL moved to continuous publication in 2020,
+  so its records from then on carry `issue: null` and a whole year forms one
+  group. Its 2018–2019 volumes *do* have monthly issues and group normally —
+  both shapes are correct, so do not "fix" either.
 - Early Access (`volume == "PP"`, `issue == 99`, or `isEarlyAccess`) is pulled
   out into a separate `early_access.json` shared across years, and rendered as
   its own page.

@@ -167,6 +167,7 @@ SKIP_PATTERNS = (
     re.compile(r"title page\]?$", re.IGNORECASE),
     re.compile(r"^steering committee\b", re.IGNORECASE),
     re.compile(r"^copyright\b", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+index\b", re.IGNORECASE),
     # Programme items that are not authored papers: forums, panels, evening
     # events, social events, tutorials round-ups, short courses.
     re.compile(r"^(?:f|ee|se|sc|t)\d+\s*:", re.IGNORECASE),
@@ -212,6 +213,15 @@ FRONT_MATTER_ABSTRACTS = (
     "these instructions give guidelines",
     "presents a listing of sponsors",
     "describes the above-named publication",
+    # Found by the SSCL audit; the same boilerplate is used by every journal.
+    "provides a listing of current staff",
+    "presents a listing of the editorial board",
+    "describes the above-named upcoming conference",
+    "presents information on the ieee",
+    "presents the subject index",
+    "presents the author index",
+    "presents the subject/author index",
+    "presents a listing of the current",
 )
 
 # Used only for short titles: one real paper (a 2018 CICC terahertz radio)

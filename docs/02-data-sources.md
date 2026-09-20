@@ -25,16 +25,26 @@ match is deliberately loose for that reason.
 
 ### 2. Fixed publication number — the five journals
 
-A journal keeps one publication number forever, so the year comes from the
+A journal normally keeps one publication number, so the year comes from the
 `ranges: ["2025_2025_Year"]` filter instead of discovery.
 
-| Source | `fixed_punumber` |
-|---|---|
-| JSSC | `4` |
-| SSCL | `8011414` |
-| TCAS-I | `8919` |
-| TCAS-II | `8920` |
-| TMTT | `22` |
+| Source | `fixed_punumber` | Pre-2004 publication |
+|---|---|---|
+| JSSC | `4` | — |
+| SSCL | `8011414` | — (starts 2018) |
+| TCAS-I | `8919` | `81` for 2000–2003 |
+| TCAS-II | `8920` | `82` for 2000–2003 |
+| TMTT | `22` | — |
+
+**A renamed journal is a different publication.** TCAS-I became "Regular
+Papers" in 2004 and TCAS-II became "Express Briefs"; before that they were
+"Fundamental Theory and Applications" (`81`) and "Analog and Digital Signal
+Processing" (`82`). Querying `8919` for the year 2000 returns **zero
+records** — silently, with no error — so those four years were simply absent
+from the dataset until 2026-09-20. `year_pub_overrides` pins them.
+
+When a journal year comes back empty, suspect a rename before assuming IEEE
+has no data.
 
 ### 3. Hardcoded year → publications — VLSI
 
@@ -59,9 +69,9 @@ all** — half a year on disk is worse than a stale one.
 | **CICC** | 2000– | ⚠️ implicit | Each session opens with an untitled invited talk, not machine-distinguishable from a paper. Older years used a `"<name> - Session N"` trailer, which `CICC_SESSION_TRAILER_RE` still handles. |
 | **VLSI** | 2000–2025 | ❌ none | Two tracks per year until 2021, merged from 2022. See mode 3 above. |
 | **JSSC** | 2000– | n/a — issues | Grouped as `"Vol. 61, Issue 3"`. Has Early Access. |
-| **SSCL** | 2018– | n/a — volume only | Publishes continuously: every record has `issue: null`, so groups are named `"Vol. 9"`. Has Early Access. |
-| **TCAS-I** | 2000– | n/a — issues | Title has changed form several times ("Fundamental Theory and Applications" → "Regular Papers"), which is why masthead filtering is pattern-based. |
-| **TCAS-II** | 2000– | n/a — issues | As above ("Analog and Digital Signal Processing" → "Express Briefs"). |
+| **SSCL** | 2018– | n/a — issues, then volume | Published discrete monthly issues in 2018–2019 (`"Vol. 1, Issue 3"`), then moved to continuous publication: from 2020 records carry `issue: null`, so a whole year is one group named `"Vol. 9"`. Both shapes are correct. Has Early Access. |
+| **TCAS-I** | 2000– | n/a — issues | Renamed in 2004 ("Fundamental Theory and Applications" → "Regular Papers"), so 2000–2003 come from publication `81`. The many masthead spellings are why filtering is pattern-based. |
+| **TCAS-II** | 2000– | n/a — issues | As above ("Analog and Digital Signal Processing" → "Express Briefs"), 2000–2003 from publication `82`. |
 | **TMTT** | 2000– | n/a — issues | Largest source by paper count. |
 
 `year_to_pubs` for VLSI currently stops at **2025** — 2026 must be added by

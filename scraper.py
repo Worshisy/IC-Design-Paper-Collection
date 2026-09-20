@@ -187,6 +187,7 @@ class Scraper:
                 pubs = self.config.year_to_pubs.get(year)
                 if pubs:
                     year_to_pub[year] = ",".join(pubs)
+            self._apply_pub_overrides(year_to_pub, start, end)
             logger.info(
                 "Using hardcoded year_to_pubs for %s: %d years in range %s–%s",
                 self.config.conference_name, len(year_to_pub), start, end,
@@ -198,6 +199,7 @@ class Scraper:
         if self.config.is_journal and self.config.fixed_punumber:
             pub = str(self.config.fixed_punumber)
             year_to_pub = {year: pub for year in range(start, end + 1)}
+            self._apply_pub_overrides(year_to_pub, start, end)
             logger.info(
                 "Using fixed punumber=%s for %s across years %s–%s",
                 pub,
