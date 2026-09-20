@@ -189,6 +189,17 @@ def _needs_copy(src: Path, dst: Path) -> bool:
     return _digest(src) != _digest(dst)
 
 
+# Where each local tree lands inside the iCloud folder. The browsable site
+# goes to the ROOT, because that is the layout already in use there
+# (Paper_Collection/isscc/..., Paper_Collection/index.html) - nesting it under
+# "site/" would orphan every existing link and bookmark.
+ICLOUD_LAYOUT = {
+    "site": "",
+    "userdata": "userdata",
+    "output": "output",
+}
+
+
 def sync_to_icloud(icloud_root: Path, trees: Iterable[str]) -> Dict[str, int]:
     """Mirror the given project subtrees into iCloud, copying changed files only."""
 
@@ -199,10 +210,12 @@ def sync_to_icloud(icloud_root: Path, trees: Iterable[str]) -> Dict[str, int]:
         src_root = PROJECT_ROOT / tree
         if not src_root.exists():
             continue
+        destination = ICLOUD_LAYOUT.get(tree, tree)
+        base = icloud_root / destination if destination else icloud_root
         for src in src_root.rglob("*"):
             if not src.is_file():
                 continue
-            dst = icloud_root / src.relative_to(PROJECT_ROOT)
+            dst = base / src.relative_to(src_root)
             if _needs_copy(src, dst):
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
