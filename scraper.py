@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -39,10 +38,11 @@ class Scraper:
     # ------------------------------------------------------------------
 
     def _search(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a search API call with rate limiting and retry."""
+        """Execute a search API call. Pacing and retry live in utils."""
 
-        time.sleep(self.config.rate_limit_seconds)
-        return retrying_post(self.config.search_api_url, payload)
+        return retrying_post(
+            self.config.search_api_url, payload, self.config.rate_limit_seconds
+        )
 
     @staticmethod
     def _normalize_title(text: str) -> str:
@@ -321,6 +321,7 @@ class Scraper:
             proceedings_url = f"{self.config.base_url}/xpl/conhome/{primary_pub}/proceeding"
 
         records: List[Dict[str, Any]] = []
+        failed_pubs: List[str] = []
         for pub in pub_numbers:
             try:
                 part = self._fetch_all_records_for_year(year, pub)
@@ -328,6 +329,17 @@ class Scraper:
             except HttpError as exc:
                 logger.error("[%s] Failed to fetch records for pub %s: %s", year, pub, exc)
                 errors.append({"year": year, "pub": pub, "reason": str(exc)})
+                failed_pubs.append(pub)
+
+        # Conferences with several tracks per year (VLSI) would otherwise store a
+        # half-year when one track fails. Keep whatever is already on disk.
+        if failed_pubs:
+            logger.error(
+                "[%s] %d of %d publications failed; leaving existing JSON untouched.",
+                year, len(failed_pubs), len(pub_numbers),
+            )
+            save_json(errors_path, errors)
+            return {}
 
         if not records:
             save_json(errors_path, errors)
@@ -446,8 +458,7 @@ class Scraper:
         """
 
         url = f"{self.config.base_url}/rest/document/{article_number}/authors"
-        time.sleep(self.config.affiliation_rate_limit_seconds)
-        data = retrying_get(url)
+        data = retrying_get(url, self.config.affiliation_rate_limit_seconds)
         authors = data.get("authors")
         if not isinstance(authors, list):
             return None
@@ -575,10 +586,18 @@ class Scraper:
 
         all_early_access: List[Dict[str, Any]] = []
 
+        failed_years: List[int] = []
         for year in sorted(available):
             pub_number = available[year]
             logger.info("=== Scraping year %s (pubNumber=%s) ===", year, pub_number)
-            year_data = self.scrape_year(year, pub_number)
+            try:
+                year_data = self.scrape_year(year, pub_number)
+            except HttpError as exc:
+                # Transient upstream failure: keep the year that is already on
+                # disk and carry on with the rest of the range.
+                logger.error("[%s] Skipped after repeated API failures: %s", year, exc)
+                failed_years.append(year)
+                continue
 
             # Journal post-processing: keep Early Access separate from regular
             # year/issues.
@@ -593,7 +612,17 @@ class Scraper:
                     )
 
         if self.config.is_journal:
-            self._save_early_access(all_early_access, scraped_years=set(available))
+            # Only merge over years this run actually managed to fetch.
+            self._save_early_access(
+                all_early_access,
+                scraped_years=set(available) - set(failed_years),
+            )
+
+        if failed_years:
+            logger.warning(
+                "%s: %d year(s) could not be fetched and were left unchanged: %s",
+                self.config.conference_name, len(failed_years), failed_years,
+            )
 
 
 __all__ = ["Scraper"]

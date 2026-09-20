@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+import random
+import threading
+import time
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 import requests
 from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -44,6 +47,115 @@ def load_json(path: Path) -> Any:
     """Load JSON from disk."""
 
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+class RateLimiter:
+    """
+    Global pacer shared by every IEEE request, whatever the endpoint.
+
+    Two jobs beyond a plain sleep:
+
+    * Adaptive floor - a 5xx/429 doubles the minimum gap between requests (up
+      to a ceiling) and a run of clean responses decays it back. A slow patch
+      therefore slows the whole scrape instead of being retried through.
+    * Circuit breaker - after a number of consecutive failures it stops and
+      waits out a long cooldown, which is the polite response to an endpoint
+      that is refusing us and avoids looking like a hostile client.
+
+    One shared instance, so the search and authors endpoints cannot each spend
+    a "full" budget and together double the real request rate.
+    """
+
+    def __init__(
+        self,
+        *,
+        jitter: float = 0.3,
+        ceiling: float = 45.0,
+        recovery_successes: int = 12,
+        break_after: int = 6,
+        cooldown: float = 300.0,
+        max_cooldowns: int = 3,
+    ) -> None:
+        self._lock = threading.Lock()
+        self._last_request = 0.0
+        self._floor = 0.0
+        self._consecutive_failures = 0
+        self._successes_since_penalty = 0
+        self._cooldowns_taken = 0
+        self.jitter = jitter
+        self.ceiling = ceiling
+        self.recovery_successes = recovery_successes
+        self.break_after = break_after
+        self.cooldown = cooldown
+        self.max_cooldowns = max_cooldowns
+        self._log = logging.getLogger("http.rate")
+
+    def wait(self, min_interval: float) -> None:
+        """Block until the caller may issue its request."""
+
+        with self._lock:
+            interval = max(min_interval, self._floor)
+            interval += random.uniform(0.0, self.jitter * interval)
+            delay = (self._last_request + interval) - time.monotonic()
+            breaker = self._pending_cooldown()
+        if breaker:
+            self._log.warning(
+                "Pausing %.0fs after %d consecutive failures before retrying.",
+                breaker, self._consecutive_failures,
+            )
+            time.sleep(breaker)
+        if delay > 0:
+            time.sleep(delay)
+        with self._lock:
+            self._last_request = time.monotonic()
+
+    def _pending_cooldown(self) -> float:
+        if self._consecutive_failures < self.break_after:
+            return 0.0
+        if self._cooldowns_taken >= self.max_cooldowns:
+            return 0.0
+        self._cooldowns_taken += 1
+        self._consecutive_failures = 0
+        return self.cooldown
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._consecutive_failures = 0
+            self._cooldowns_taken = 0
+            if self._floor <= 0:
+                return
+            self._successes_since_penalty += 1
+            if self._successes_since_penalty >= self.recovery_successes:
+                self._successes_since_penalty = 0
+                self._floor = 0.0 if self._floor <= 1.0 else self._floor / 2.0
+                self._log.info("Backing off less: request floor now %.1fs", self._floor)
+
+    def record_failure(self) -> None:
+        with self._lock:
+            self._consecutive_failures += 1
+            self._successes_since_penalty = 0
+            previous = self._floor
+            self._floor = min(self.ceiling, (self._floor * 2.0) if self._floor else 2.0)
+            if self._floor != previous:
+                self._log.warning(
+                    "Upstream pushing back (%d in a row): request floor now %.1fs",
+                    self._consecutive_failures, self._floor,
+                )
+
+
+def _build_rate_limiter() -> RateLimiter:
+    cfg = get_config(create_dirs=False)
+    return RateLimiter(
+        jitter=cfg.rate_limit_jitter,
+        ceiling=cfg.rate_limit_ceiling_seconds,
+        recovery_successes=cfg.rate_limit_recovery_successes,
+        break_after=cfg.circuit_break_failures,
+        cooldown=cfg.circuit_break_cooldown_seconds,
+        max_cooldowns=cfg.circuit_break_max_cooldowns,
+    )
+
+
+RATE_LIMITER = _build_rate_limiter()
 
 
 class HttpError(RuntimeError):
@@ -95,18 +207,29 @@ def make_retrying_post() -> Callable[[str, Dict[str, Any]], Dict[str, Any]]:
         ),
         reraise=True,
     )
-    def _post(url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(url: str, payload: Dict[str, Any], min_interval: float) -> Dict[str, Any]:
         session = get_session()
+        RATE_LIMITER.wait(min_interval)
         logger.debug("POST %s", url)
-        resp = session.post(url, json=payload, timeout=cfg.request_timeout_seconds)
-        resp.raise_for_status()
-        return resp.json()
-
-    def wrapper(url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            return _post(url, payload)
-        except RetryError as exc:
-            raise HttpError(f"Failed to POST {url!r} after retries") from exc
+            resp = session.post(url, json=payload, timeout=cfg.request_timeout_seconds)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException:
+            RATE_LIMITER.record_failure()
+            raise
+        RATE_LIMITER.record_success()
+        return data
+
+    def wrapper(
+        url: str,
+        payload: Dict[str, Any],
+        min_interval: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        try:
+            return _post(url, payload, cfg.rate_limit_seconds if min_interval is None else min_interval)
+        except (RetryError, requests.RequestException, ValueError) as exc:
+            raise HttpError(f"Failed to POST {url!r} after retries: {exc}") from exc
 
     return wrapper
 
@@ -130,18 +253,25 @@ def make_retrying_get() -> Callable[[str], Dict[str, Any]]:
         ),
         reraise=True,
     )
-    def _get(url: str) -> Dict[str, Any]:
+    def _get(url: str, min_interval: float) -> Dict[str, Any]:
         session = get_session()
+        RATE_LIMITER.wait(min_interval)
         logger.debug("GET %s", url)
-        resp = session.get(url, timeout=cfg.request_timeout_seconds)
-        resp.raise_for_status()
-        return resp.json()
-
-    def wrapper(url: str) -> Dict[str, Any]:
         try:
-            return _get(url)
-        except RetryError as exc:
-            raise HttpError(f"Failed to GET {url!r} after retries") from exc
+            resp = session.get(url, timeout=cfg.request_timeout_seconds)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException:
+            RATE_LIMITER.record_failure()
+            raise
+        RATE_LIMITER.record_success()
+        return data
+
+    def wrapper(url: str, min_interval: Optional[float] = None) -> Dict[str, Any]:
+        try:
+            return _get(url, cfg.rate_limit_seconds if min_interval is None else min_interval)
+        except (RetryError, requests.RequestException, ValueError) as exc:
+            raise HttpError(f"Failed to GET {url!r} after retries: {exc}") from exc
 
     return wrapper
 

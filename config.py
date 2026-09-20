@@ -120,14 +120,29 @@ class ScraperConfig:
         "Chrome/122.0 Safari/537.36"
     )
     request_timeout_seconds: int = 30
-    max_retries: int = 5
-    backoff_initial_seconds: float = 2.0
-    backoff_max_seconds: float = 30.0
+    # IEEE answers sustained scraping with intermittent 502s, so retries are
+    # patient: 8 attempts backing off to 2 minutes rides out a throttle window.
+    max_retries: int = 8
+    backoff_initial_seconds: float = 3.0
+    backoff_max_seconds: float = 120.0
     rate_limit_seconds: float = 1.5
     # The per-document authors endpoint is one call per paper, so it gets a
     # shorter delay than the search API to keep backfills tractable.
     affiliation_rate_limit_seconds: float = 0.4
     rows_per_page: int = 100
+
+    # Adaptive pacing, applied globally across every IEEE request.
+    # On a 5xx/429 the floor doubles (up to rate_limit_ceiling_seconds) and
+    # decays back after a run of clean responses, so a slow patch throttles
+    # the whole scrape instead of hammering through it.
+    rate_limit_jitter: float = 0.3
+    rate_limit_ceiling_seconds: float = 45.0
+    rate_limit_recovery_successes: int = 12
+    # After this many consecutive failures, pause outright rather than burn
+    # retries against an endpoint that is clearly refusing us.
+    circuit_break_failures: int = 6
+    circuit_break_cooldown_seconds: float = 300.0
+    circuit_break_max_cooldowns: int = 3
 
     # Paths (set by get_config from project_root + conference_id)
     project_root: Path = field(default_factory=lambda: Path(__file__).resolve().parent)
