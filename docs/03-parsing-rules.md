@@ -13,18 +13,32 @@ The API returns covers, tables of contents, author indexes, committee lists,
 journal mastheads and advertisements as ordinary records, indistinguishable
 from papers by metadata.
 
-**Detection is title-only, by necessity.** `articleContentType`,
-`displayContentType` and `contentType` are useless for this: every record in
+**The API's own type fields cannot help.** `articleContentType`,
+`displayContentType` and `contentType` are useless here: every record in
 RFIC 2024 — cover page, TOC, author index and real papers alike — reports
-`"Conference Paper"` (verified 2026-09-20 against the live API).
+`"Conference Paper"` (verified 2026-09-20 against the live API). Detection
+therefore works from the title and the abstract.
 
-Three rule sets, checked in order by `_is_front_matter`:
+Four signals, checked in order. The first three are title-only
+(`_is_front_matter`); the fourth needs the record (`_is_front_matter_record`):
 
 | Rule set | Match | Example caught |
 |---|---|---|
 | `SKIP_TITLES` | Whole title, lowercased | `"table of contents"`, `"committees"`, `"blank page"` |
 | `SKIP_PREFIXES` | Title starts with | `"tutorial:"`, `"[front"`, `"timetable"` |
-| `SKIP_PATTERNS` | Regex search | mastheads, `<ACRONYM> <YEAR> <front-matter noun>`, bracketed front matter |
+| `SKIP_PATTERNS` | Regex search | mastheads, `<ACRONYM> <YEAR> <front-matter noun>`, bracketed front matter, forums/panels/evening events, venue maps, committee listings, catalogue entries |
+| `FRONT_MATTER_ABSTRACTS` | Abstract prefix | IEEE's fixed boilerplate: *"Presents the title page of the proceedings record."*, *"The author index contains an entry for each author…"*, *"This page or pages intended for user notes."* |
+
+### The abstract signal is the strongest one
+
+IEEE attaches fixed boilerplate abstracts to front matter, which identifies
+covers, indexes, committee pages and author-instruction pages **whatever the
+title says** — 445 records that no title rule would catch.
+
+One guard: the auto-generated *"The following topics are dealt with: …"*
+abstract marks front matter almost always, but one real paper (a 2018 CICC
+terahertz radio) carries it too. That pattern therefore only applies to short
+titles, since the real paper's title is long.
 
 ### Design constraints
 
@@ -45,23 +59,30 @@ The same applies to bracketed titles: `[Blank page]` is front matter, but
 scholarly item. The bracket rule lists the front-matter keywords explicitly.
 
 **Never add a bare substring to these lists.** Anchor it, or gate it on a
-second keyword, and re-run the regression sweep in
-`../scratch/2026-09-20-front-matter-audit.md` before committing.
+second keyword, and run `tools/audit_front_matter.py` before committing —
+75 unit cases plus a sweep that prints the longest removed titles, which is
+where false positives hide. Add a unit case for whatever prompted the change.
 
 ### Session headers are never front matter
 
 `"ISSCC 2024 Session 1 Overview: Plenary"` must survive filtering. The
 acronym-prefix pattern deliberately excludes `Session N …` from its noun
-list, and the unit tests in the scratch note cover it.
+list, and `tools/audit_front_matter.py` covers it as a unit case.
 
 ## 2. Session detection
 
-Two regexes, tried in this order:
+Three regexes, tried in this order:
 
 | Regex | Shape | Used by |
 |---|---|---|
 | `CICC_SESSION_TRAILER_RE` | `"Advanced MOSFET modeling - Session 2"` | CICC, older years |
 | `SESSION_HEADER_RE` | `"[ISSCC 2024] Session 3 Overview: Wearables"` | ISSCC |
+| `ALPHA_SESSION_HEADER_RE` | `"Session MO1A: Integrated Mixers I"` | RFIC 2004 |
+
+The alphanumeric form matters because `SESSION_HEADER_RE` requires digits
+after "Session"; RFIC 2004's codes (`MO1A`, `M02B`, `TUIFR`) are alphanumeric,
+so its 25 session rows were previously counted as papers. Such a session keeps
+its printed code in `session_code` and gets the next free sequential number.
 
 **Only ISSCC actually publishes session headers through the API.** This is a
 property of the data, not a parser limitation:
@@ -124,7 +145,33 @@ Journals set `group_by_issue=True` and group by `(volume, issue, isNumber)`:
 Early Access merges per year on write: scraping a single year must not drop
 the other years' entries.
 
-## 5. Known limits
+## 5. Duplicate records
+
+A year can return the same paper twice. ISSCC 2002 returns 56 titles twice —
+once under a bare `Session 0` bucket and once under the real topical session,
+with *different* article numbers, and one copy missing its abstract.
+
+`_deduplicate_papers` keeps one copy per normalised title, preferring (in
+order) a real session over session 0, a present abstract, then more authors,
+and renumbers what remains.
+
+## 6. Legacy text markup
+
+Older records carry pre-Unicode IEEE markup and undecoded HTML entities.
+`textclean.py` converts both at parse time — see `01-architecture.md`.
+Unknown `/spl …/` names are left untouched rather than guessed at, so an
+unmapped name stays visible instead of silently becoming the wrong character.
+
+## 7. What is deliberately not inferred
+
+Session structure is never reconstructed for years that do not expose it.
+The best available heuristic (empty abstract + exactly two authors + a
+topic-like title) finds 22 real CICC session breakers but also misfires on 4
+genuine ISSCC papers, so it is not used. A visible topic header in the paper
+list is a smaller error than a dropped paper. See
+`../scratch/2026-09-20-source-audits.md`.
+
+## 8. Known limits
 
 - Affiliations are absent until `--enrich-affiliations` has run for that year.
 - `conference_name` on a paper comes from `publicationTitle` and does not

@@ -13,7 +13,8 @@ structure changes.
 |---|---|---|
 | `config.py` | `docs/02-data-sources.md`, `docs/01-architecture.md` | A source is added/removed, a discovery mode or `year_to_pubs` mapping changes, a rate limit or retry setting changes. |
 | `scraper.py` | `docs/01-architecture.md`, `docs/02-data-sources.md`, `docs/05-operations.md` | API payload/endpoint changes, Early Access handling changes, affiliation enrichment changes, retry/resilience behaviour changes. |
-| `parser.py` | `docs/03-parsing-rules.md` | **Any** change to `SKIP_*`, the session regexes, ordering heuristics or numbering. Always re-run the regression sweep in `scratch/2026-09-20-front-matter-audit.md`. |
+| `parser.py` | `docs/03-parsing-rules.md` | **Any** change to `SKIP_*`, `FRONT_MATTER_ABSTRACTS`, the session regexes, ordering heuristics, numbering or de-duplication. Always run `tools/audit_front_matter.py` first, and add a unit case for whatever prompted the change. |
+| `textclean.py` | `docs/03-parsing-rules.md`, `docs/01-architecture.md` | An entity mapping changes, or a new legacy markup form is handled. Re-run `tools/audit_front_matter.py` and `--reparse`. |
 | `models.py` | `docs/01-architecture.md` (data model table) | A field is added, removed or changes meaning. |
 | `validation.py` | `docs/01-architecture.md`, `docs/05-operations.md` | A validation rule or an exported column changes. |
 | `html_builder.py` | `docs/04-viewer-and-marks.md`, `docs/01-architecture.md` | Row/search payload fields change, page ordering changes, the annotations seed changes. |

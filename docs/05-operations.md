@@ -36,8 +36,16 @@ update.bat --affiliations 500   # also fetch affiliations, 500 papers per source
 update.bat --conference jssc    # one source only
 ```
 
-**Use `--full` after any change to `parser.py`** — filtering and session rules
-only take effect on a re-parse.
+**After changing `parser.py`, re-parse rather than re-scrape:**
+
+```bash
+D:\anaconda3\python.exe main.py --conference all --reparse
+```
+
+That rebuilds every year's JSON from the cached raw records in
+`cache/<id>/records/`, offline and in seconds. `--full` is only needed when
+you want *newer records* from IEEE, not when you have changed how records are
+interpreted.
 
 ## Browsing with marks saved to disk
 
@@ -92,9 +100,10 @@ and mastheads that were previously counted as papers. See
 `docs/02-data-sources.md` for the before/after figures.
 
 **A real paper disappeared**
-A front-matter rule is too broad. Find the offending pattern in `parser.py`,
-tighten it, and re-run the sweep in
-`scratch/2026-09-20-front-matter-audit.md` before committing.
+A front-matter rule is too broad. Run `tools/audit_front_matter.py`: its
+"must NOT be filtered" cases exist for exactly this, and the sweep prints the
+longest removed titles, where false positives hide. Tighten the pattern, add
+the paper as a new unit case, then `--reparse`.
 
 **Affiliation fetching is slow**
 It is one request per paper by design. Use `--affiliation-limit` to work

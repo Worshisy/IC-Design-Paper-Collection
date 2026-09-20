@@ -21,3 +21,4 @@ Conventions:
 | [2026-09-20-front-matter-audit.md](2026-09-20-front-matter-audit.md) | The regression sweep behind the front-matter filter: measured counts, false positives found and fixed, and the rerunnable test. |
 | [2026-09-20-style-review.md](2026-09-20-style-review.md) | The Sonnet style/quality review of the original code, with what was acted on and what was deliberately left. |
 | [2026-09-20-api-behaviour.md](2026-09-20-api-behaviour.md) | What the IEEE endpoints actually return: affiliations, content types, throttling, encoding. |
+| [2026-09-20-source-audits.md](2026-09-20-source-audits.md) | Per-source title audits: what was fixed, what was measured and rejected, and the false positive the regression tool caught. |

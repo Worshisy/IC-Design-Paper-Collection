@@ -61,7 +61,8 @@ GET https://ieeexplore.ieee.org/rest/document/<articleNumber>/authors
 | `config.py` | Source definitions (`CONFERENCES`), `ScraperConfig`, all paths. **Source of truth for which sources exist.** | Parsing or HTTP logic. |
 | `utils.py` | Shared HTTP session, retry wrappers (`retrying_post`, `retrying_get`), JSON IO, logging setup. | Anything source-specific. |
 | `scraper.py` | Year discovery, paging, Early Access handling, affiliation enrichment. | Title interpretation. |
-| `parser.py` | Turning raw records into the data model: front-matter rules, session detection, paper numbering. | Network calls. |
+| `parser.py` | Turning raw records into the data model: front-matter rules, session detection, paper numbering, de-duplication. | Network calls. |
+| `textclean.py` | Decoding HTML entities and converting pre-Unicode IEEE markup (`/spl mu/` → `µ`, `/sup 2/` → `²`). | Anything structural. |
 | `models.py` | `Paper` / `Session` / `ConferenceYear` pydantic dataclasses. | Behaviour. |
 | `validation.py` | Structural checks and CSV/combined exports. | Fixing data (it reports, it does not repair). |
 | `html_builder.py` | Jinja environment, row flattening, the annotation seed file. | Presentation (that is in `templates/`). |
@@ -89,6 +90,20 @@ For journals, "session" means "issue" — the same structure is reused, with
 `session_name` set to `"Vol. 61, Issue 3"` (or `"Vol. 9"` when the journal
 has no issue numbers, as with SSCL).
 
+## The raw-record cache
+
+Every successful fetch writes its raw API records to
+`cache/<id>/records/<year>.json`. That makes a parser change cheap:
+
+```bash
+python main.py --conference all --reparse     # rebuild JSON offline, no network
+```
+
+Without it, changing a front-matter rule meant a ~27-minute re-scrape of all
+nine sources and another few thousand requests at IEEE. With it, the same
+change is re-applied in seconds and IEEE is not touched at all. Re-fetch only
+when you actually want newer records.
+
 ## Resumability
 
 - A year is skipped if `output/<id>/json/<year>.json` exists, unless
@@ -103,7 +118,8 @@ has no issue numbers, as with SSCL).
 | You want to… | Change |
 |---|---|
 | Add a source | `CONFERENCES` in `config.py`; pick a discovery mode (see `docs/02`). |
-| Stop something being treated as a paper | `SKIP_TITLES` / `SKIP_PREFIXES` / `SKIP_PATTERNS` in `parser.py` (see `docs/03`). |
+| Stop something being treated as a paper | `SKIP_TITLES` / `SKIP_PREFIXES` / `SKIP_PATTERNS` / `FRONT_MATTER_ABSTRACTS` in `parser.py` (see `docs/03`), then `tools/audit_front_matter.py`. |
+| Fix garbled old text | `SPL_ENTITIES` in `textclean.py`, then `--reparse`. |
 | Change how sessions are detected | `SESSION_HEADER_RE` / `CICC_SESSION_TRAILER_RE` in `parser.py`. |
 | Change the look of the site | `templates/_styles.css.j2` (shared) or the page template. |
 | Change mark/like/note behaviour | `templates/_scripts.js.j2` and `serve.py`. |

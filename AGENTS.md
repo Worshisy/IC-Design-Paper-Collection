@@ -101,6 +101,22 @@ before 2026-09-20) · ✏️ Yi's data/edits · ✍️ Claude-authored.
   inference now requires the year to contain at least one real session header.
 - **Journal Early Access is shared across years.** Scraping one year used to
   rewrite the whole `early_access.json`; it now merges per year.
+- **Re-parse, do not re-scrape, after a parser change.** Raw records are
+  cached in `cache/<id>/records/`; `main.py --conference all --reparse`
+  rebuilds every year offline in seconds. A full re-scrape is ~27 minutes and
+  several thousand requests at IEEE.
+- **IEEE front matter is best identified by its abstract**, not its title.
+  Covers, indexes and committee pages carry fixed boilerplate
+  ("Presents the title page of the proceedings record."). 445 such records
+  carry no title clue at all.
+- **Old records carry pre-Unicode markup**: `/spl mu/`, `/sup 2/`, and
+  undecoded HTML entities — 11.5k occurrences. `textclean.py` handles them.
+  Leave unknown `/spl …/` names alone rather than guessing.
+- **A search term is not a conference name.** CICC 2010 is indexed as
+  "IEEE Custom Integrated Circuits Conference 2010" and searching "CICC"
+  never found it, so the year was silently absent with no error file. When a
+  year is missing, check discovery before assuming IEEE lacks the data.
+  CICC 2016 really is absent from IEEE Xplore.
 
 ## 5. Project state
 
@@ -122,4 +138,6 @@ Full re-scrape of all 9 sources run afterwards.
 
 A Sonnet style-review pass ran over the original code; its findings are
 recorded in `scratch/2026-09-20-style-review.md` with what was and was not
-acted on.
+acted on. Per-source title audits (one agent per source) are recorded in
+`scratch/2026-09-20-source-audits.md`, including the heuristics that were
+measured and **rejected** for producing false positives on real papers.
