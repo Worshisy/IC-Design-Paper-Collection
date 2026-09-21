@@ -511,6 +511,7 @@ def _extract_paper(
         paper_url=paper_url,
         doi=rec.get("doi"),
         article_number=str(rec.get("articleNumber") or "") or None,
+        start_page=str(rec.get("startPage") or "") or None,
     )
 
 

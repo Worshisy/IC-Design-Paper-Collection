@@ -27,6 +27,7 @@ import argparse
 import datetime as dt
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -39,6 +40,58 @@ from utils import HttpError, save_json, setup_logging  # noqa: E402
 logger = logging.getLogger("backfill")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PROGRESS_PATH = PROJECT_ROOT / "cache" / "affiliation_progress.json"
+LOCK_PATH = PROJECT_ROOT / "cache" / "affiliation_backfill.lock"
+
+
+def _process_alive(pid: int) -> bool:
+    """Is that PID still running? (Windows-friendly, no signals.)"""
+
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True, text=True, timeout=15,
+        ).stdout
+        return str(pid) in out
+    except Exception:
+        return False
+
+
+def acquire_lock() -> bool:
+    """
+    Refuse to start if another backfill is already running.
+
+    Each process carries its own rate limiter, so two of them quietly double
+    the request rate at IEEE - which is exactly how this run earned an HTTP
+    418. Stopping a background shell does not necessarily kill the Python
+    child, so the guard lives here rather than in whatever launched it.
+    """
+
+    if LOCK_PATH.exists():
+        try:
+            existing = int(LOCK_PATH.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            existing = 0
+        if existing and existing != os.getpid() and _process_alive(existing):
+            logger.error(
+                "Another backfill is already running (PID %s). Stop it first: "
+                "two processes double the request rate and get us blocked.",
+                existing,
+            )
+            return False
+        logger.info("Clearing a stale lock from PID %s.", existing or "?")
+
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
+    return True
+
+
+def release_lock() -> None:
+    try:
+        if LOCK_PATH.exists() and LOCK_PATH.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            LOCK_PATH.unlink()
+    except OSError:
+        pass
 
 
 def papers_missing_affiliations(json_dir: Path, year: int) -> int:
@@ -70,6 +123,9 @@ def main() -> int:
     parser.add_argument("--budget", type=int, default=0,
                         help="Stop after roughly this many papers (0 = no limit).")
     args = parser.parse_args()
+
+    if not acquire_lock():
+        return 1
 
     sources = list(CONFERENCES.keys())
     scrapers = {cid: Scraper(config=get_config(cid)) for cid in sources}
@@ -140,4 +196,7 @@ def _write_progress(started: dt.datetime, done: int, total: int, year: int, sour
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    finally:
+        release_lock()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import random
 import threading
 import time
@@ -37,10 +38,20 @@ def save_text(path: Path, content: str) -> None:
 
 
 def save_json(path: Path, data: Any) -> None:
-    """Persist JSON to disk with UTF-8 encoding and indentation."""
+    """
+    Persist JSON atomically.
+
+    Written to a sibling temp file and then replaced, so a process killed
+    mid-write leaves the previous file intact rather than a truncated one.
+    The affiliation cache is written every 50 lookups during a run that is
+    routinely interrupted, so this matters.
+    """
 
     ensure_dir(path.parent)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    payload = json.dumps(data, indent=2, ensure_ascii=False)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def load_json(path: Path) -> Any:

@@ -70,6 +70,15 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--toc-sessions",
+        action="store_true",
+        help=(
+            "Rebuild sessions from each year's printed programme (Table of "
+            "Contents PDF). Recovers real session names for RFIC/CICC/VLSI, "
+            "which expose none through the search API."
+        ),
+    )
+    parser.add_argument(
         "--enrich-affiliations",
         action="store_true",
         help=(
@@ -135,6 +144,16 @@ def main(argv: Optional[list[str]] = None) -> int:
             cfg = get_config(cid)
             logger.info("=== Re-parsing cached records: %s ===", cfg.conference_name)
             Scraper(config=cfg).reparse_all()
+            run_validation_and_exports(json_dir=cfg.json_dir, csv_dir=cfg.csv_dir)
+        return 0
+
+    if args.toc_sessions:
+        for cid in ids:
+            cfg = get_config(cid)
+            logger.info("=== Programme sessions: %s ===", cfg.conference_name)
+            Scraper(config=cfg).enrich_sessions_all(
+                start_year=args.start_year, end_year=args.end_year
+            )
             run_validation_and_exports(json_dir=cfg.json_dir, csv_dir=cfg.csv_dir)
         return 0
 

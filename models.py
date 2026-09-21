@@ -30,6 +30,8 @@ class Paper:
     paper_url: Optional[str] = None
     doi: Optional[str] = None
     article_number: Optional[str] = None
+    # Printed first page; used to map papers onto the programme's sessions.
+    start_page: Optional[str] = None
 
 
 @dataclass(slots=True)

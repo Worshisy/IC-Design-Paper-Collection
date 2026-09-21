@@ -607,6 +607,133 @@ class Scraper:
         return removed
 
     # ------------------------------------------------------------------
+    # Session structure from the printed programme
+    # ------------------------------------------------------------------
+
+    def _toc_pdf_path(self, year: int) -> Path:
+        return self.config.cache_dir / "toc" / f"{year}.pdf"
+
+    def enrich_sessions_from_toc(self, year: int) -> bool:
+        """
+        Rebuild a year's sessions from the proceedings Table of Contents.
+
+        The search API only exposes session headers for ISSCC, but RFIC, CICC
+        and VLSI all publish the programme as a front-matter PDF, which is
+        fetchable and lists every session. Applied only when it maps a good
+        share of the year's papers - otherwise the year keeps what it had.
+        """
+
+        import toc_sessions as toc
+
+        records_path = self._records_cache_path(year)
+        year_path = self._year_json_path(year)
+        if not records_path.exists() or not year_path.exists():
+            return False
+
+        try:
+            records = load_json(records_path)
+            year_data = load_json(year_path)
+        except (OSError, ValueError):
+            return False
+
+        # 1. Preferred: IEEE's own session headings from the TOC endpoint.
+        #    This is what Xplore renders as session bars on the proceedings
+        #    page. CICC populates it; RFIC and VLSI do not.
+        primary = records[0] if records else {}
+        publication = primary.get("publicationNumber")
+        issue = primary.get("isNumber")
+        if publication and issue:
+            try:
+                topics = toc.fetch_major_topics(str(publication), str(issue))
+            except HttpError as exc:
+                logger.warning("[%s %s] TOC endpoint failed: %s", self.config.conference_id, year, exc)
+                topics = {}
+            if topics:
+                applied, detail = toc.sessions_from_major_topics(year_data, topics)
+                if applied:
+                    save_json(year_path, year_data)
+                    logger.info("[%s %s] sessions from %s", self.config.conference_id, year, detail)
+                    return True
+                logger.info("[%s %s] headings not applied: %s", self.config.conference_id, year, detail)
+
+        # 2. Fallback: parse the printed programme PDF. Try each candidate -
+        #    RFIC ships a 2-page "Session List" with no structure alongside a
+        #    32-page "Table of Contents" that has all of it.
+        applied = False
+        detail = "no programme document"
+        tried = 0
+        for candidate in toc.find_toc_records(records):
+            tried += 1
+            article = candidate.get("articleNumber")
+            try:
+                pdf_bytes = toc.download_toc(
+                    candidate, self._toc_pdf_path(year).with_name(f"{year}-{article}.pdf")
+                )
+            except HttpError as exc:
+                logger.warning("[%s %s] programme download failed: %s", self.config.conference_id, year, exc)
+                continue
+            if not pdf_bytes:
+                detail = f"programme PDF unavailable ({tried} candidate(s) tried)"
+                continue
+
+            raw_text = toc.extract_text(pdf_bytes)
+            programme = toc.parse_programme(raw_text)
+            if not programme.session_names:
+                detail = f"{candidate.get('articleTitle')!r} has no recognisable sessions"
+                continue
+
+            # For VLSI 2022+ the two tracks share one publication, so papers
+            # missing from the Circuits programme are Technology papers and
+            # are dropped rather than bucketed as unassigned.
+            merged_tracks = bool(self.config.circuits_only) and "technology and circuits" in (
+                (records[0].get("publicationTitle") or "").lower() if records else ""
+            )
+            applied, detail = toc.assign_sessions(
+                year_data, programme, raw_text=raw_text, drop_unmatched=merged_tracks
+            )
+            if applied:
+                break
+
+        if not applied:
+            logger.info("[%s %s] programme not applied: %s", self.config.conference_id, year, detail)
+            return False
+
+        save_json(year_path, year_data)
+        logger.info(
+            "[%s %s] sessions from programme: %s",
+            self.config.conference_id, year, detail,
+        )
+        return True
+
+    def enrich_sessions_all(
+        self,
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
+    ) -> int:
+        """Apply the programme to every cached year. Returns years improved."""
+
+        cache_dir = self.config.cache_dir / "records"
+        if not cache_dir.is_dir():
+            return 0
+        years = sorted(
+            (int(p.stem) for p in cache_dir.glob("*.json") if p.stem.isdigit()),
+            reverse=True,
+        )
+        improved = 0
+        for year in years:
+            if start_year is not None and year < start_year:
+                continue
+            if end_year is not None and year > end_year:
+                continue
+            if self.enrich_sessions_from_toc(year):
+                improved += 1
+        logger.info(
+            "%s: programme applied to %d of %d years.",
+            self.config.conference_name, improved, len(years),
+        )
+        return improved
+
+    # ------------------------------------------------------------------
     # Author affiliations (one extra request per paper)
     # ------------------------------------------------------------------
 

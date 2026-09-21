@@ -73,33 +73,40 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         "name": "VLSI",
         "search_term": "Symposium on VLSI Technology and Circuits",
         "title_contains": "symposium on vlsi",
+        # Yi wants the CIRCUITS track only. Until 2021 Circuits and Technology
+        # were separate proceedings, so only the Circuits publication is
+        # listed below. From 2022 IEEE merged them into one publication, so
+        # those years still carry Technology papers - they can only be split
+        # by session, from the printed programme.
+        "circuits_only": True,
         "year_to_pubs": {
-            2000: ["6880", "6881"],
-            2001: ["7437", "7441"],
-            2002: ["7919", "7925"],
-            2003: ["8656", "8657"],
-            2004: ["9331", "9327"],
-            2005: ["9912", "9911"],
-            2006: ["11174", "11173"],
-            2007: ["4342660", "4339664"],
-            2008: ["4573021", "4573020"],
-            2009: ["5176049", "5176122"],
-            2010: ["5552635", "5548927"],
-            2011: ["5976946", "5976318"],
-            2012: ["6235082", "6235083"],
-            2013: ["6571720", "6571719"],
-            2014: ["6850260", "6886509"],
-            2015: ["7196579", "7198535"],
-            2016: ["7569797", "7569798"],
-            2017: ["8000695", "7989855"],
-            2018: ["8484863", "8481640"],
-            2019: ["8766307", "8766306"],
-            2020: ["9146894", "9264988"],
-            2021: ["9492225", "9508626"],
+            2000: ["6880"],
+            2001: ["7437"],
+            2002: ["7919"],
+            2003: ["8656"],
+            2004: ["9331"],
+            2005: ["9912"],
+            2006: ["11174"],
+            2007: ["4342660"],
+            2008: ["4573021"],
+            2009: ["5176049"],
+            2010: ["5552635"],
+            2011: ["5976946"],
+            2012: ["6235082"],
+            2013: ["6571720"],
+            2014: ["6850260"],
+            2015: ["7196579"],
+            2016: ["7569797"],
+            2017: ["8000695"],
+            2018: ["8484863"],
+            2019: ["8766307"],
+            2020: ["9146894"],
+            2021: ["9492225"],
             2022: ["9830116"],
             2023: ["10185199"],
             2024: ["10631290"],
             2025: ["11074776"],
+            2026: ["11577192"],
         },
     },
 }
@@ -127,6 +134,8 @@ class ScraperConfig:
     year_to_pubs: Dict[int, List[str]] = field(default_factory=dict)
     # Supplements discovery for individual years instead of replacing it.
     year_pub_overrides: Dict[int, List[str]] = field(default_factory=dict)
+    # VLSI only: keep the Circuits track and drop Technology papers.
+    circuits_only: bool = False
 
     # HTTP behaviour
     user_agent: str = (
@@ -210,6 +219,7 @@ def get_config(conference_id: str = "isscc", create_dirs: bool = True) -> Scrape
         title_excludes_any=list(conf.get("title_excludes_any", [])),
         year_to_pubs=dict(conf.get("year_to_pubs", {})),
         year_pub_overrides=dict(conf.get("year_pub_overrides", {})),
+        circuits_only=bool(conf.get("circuits_only", False)),
         project_root=root,
         cache_dir=cache,
         raw_html_dir=cache / "raw_html",
