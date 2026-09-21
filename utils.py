@@ -75,6 +75,8 @@ class RateLimiter:
         break_after: int = 6,
         cooldown: float = 300.0,
         max_cooldowns: int = 3,
+        escalation_cooldown: float = 8.0,
+        reset_after_quiet: float = 90.0,
     ) -> None:
         self._lock = threading.Lock()
         self._last_request = 0.0
@@ -88,15 +90,28 @@ class RateLimiter:
         self.break_after = break_after
         self.cooldown = cooldown
         self.max_cooldowns = max_cooldowns
+        self.escalation_cooldown = escalation_cooldown
+        self.reset_after_quiet = reset_after_quiet
+        self._last_escalation = 0.0
+        self._last_failure = 0.0
         self._log = logging.getLogger("http.rate")
 
     def wait(self, min_interval: float) -> None:
-        """Block until the caller may issue its request."""
+        """
+        Block until the caller may issue its request.
+
+        The slot is RESERVED inside the lock, before sleeping. Updating the
+        timestamp after the sleep instead would let parallel workers all read
+        the same stale value, compute the same short delay and fire at once -
+        so the configured spacing would not actually be enforced.
+        """
 
         with self._lock:
             interval = max(min_interval, self._floor)
             interval += random.uniform(0.0, self.jitter * interval)
-            delay = (self._last_request + interval) - time.monotonic()
+            now = time.monotonic()
+            start_at = max(now, self._last_request + interval)
+            self._last_request = start_at
             breaker = self._pending_cooldown()
         if breaker:
             self._log.warning(
@@ -104,10 +119,9 @@ class RateLimiter:
                 breaker, self._consecutive_failures,
             )
             time.sleep(breaker)
+        delay = start_at - time.monotonic()
         if delay > 0:
             time.sleep(delay)
-        with self._lock:
-            self._last_request = time.monotonic()
 
     def _pending_cooldown(self) -> float:
         if self._consecutive_failures < self.break_after:
@@ -124,6 +138,12 @@ class RateLimiter:
             self._cooldowns_taken = 0
             if self._floor <= 0:
                 return
+            # A long clean stretch means whatever upset the endpoint is over.
+            if self._last_failure and (time.monotonic() - self._last_failure) > self.reset_after_quiet:
+                self._floor = 0.0
+                self._successes_since_penalty = 0
+                self._log.info("Upstream quiet again: request floor cleared.")
+                return
             self._successes_since_penalty += 1
             if self._successes_since_penalty >= self.recovery_successes:
                 self._successes_since_penalty = 0
@@ -132,8 +152,18 @@ class RateLimiter:
 
     def record_failure(self) -> None:
         with self._lock:
+            now = time.monotonic()
             self._consecutive_failures += 1
             self._successes_since_penalty = 0
+            self._last_failure = now
+
+            # Escalate once per wave. Several workers failing on the same
+            # upstream hiccup is one event, not N, and doubling N times lands
+            # straight on the ceiling and stalls everything.
+            if now - self._last_escalation < self.escalation_cooldown:
+                return
+            self._last_escalation = now
+
             previous = self._floor
             self._floor = min(self.ceiling, (self._floor * 2.0) if self._floor else 2.0)
             if self._floor != previous:
@@ -152,6 +182,8 @@ def _build_rate_limiter() -> RateLimiter:
         break_after=cfg.circuit_break_failures,
         cooldown=cfg.circuit_break_cooldown_seconds,
         max_cooldowns=cfg.circuit_break_max_cooldowns,
+        escalation_cooldown=cfg.rate_limit_escalation_cooldown,
+        reset_after_quiet=cfg.rate_limit_reset_after_quiet,
     )
 
 
@@ -179,13 +211,23 @@ def _build_session() -> requests.Session:
     return session
 
 
-_SESSION = _build_session()
+_THREAD_LOCAL = threading.local()
 
 
 def get_session() -> requests.Session:
-    """Return the shared HTTP session."""
+    """
+    Return this thread's HTTP session.
 
-    return _SESSION
+    requests.Session is not safe to share between threads, and the affiliation
+    pass fetches in parallel, so each worker gets its own. Connection pooling
+    still happens within a thread.
+    """
+
+    session = getattr(_THREAD_LOCAL, "session", None)
+    if session is None:
+        session = _build_session()
+        _THREAD_LOCAL.session = session
+    return session
 
 
 def make_retrying_post() -> Callable[[str, Dict[str, Any]], Dict[str, Any]]:
@@ -259,6 +301,12 @@ def make_retrying_get() -> Callable[[str], Dict[str, Any]]:
         logger.debug("GET %s", url)
         try:
             resp = session.get(url, timeout=cfg.request_timeout_seconds)
+            # 418 is what IEEE returns when it decides you are a bot; 429 is
+            # the ordinary rate-limit answer. Both mean "slow down", not
+            # "retry harder".
+            if resp.status_code in (418, 429):
+                RATE_LIMITER.record_failure()
+                raise requests.HTTPError(f"{resp.status_code} rate limited", response=resp)
             resp.raise_for_status()
             data = resp.json()
         except requests.RequestException:

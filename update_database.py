@@ -6,6 +6,7 @@ Run it from update.bat, or directly:
     python update_database.py                  # refresh recent years, all sources
     python update_database.py --full           # re-scrape every year from 2000
     python update_database.py --no-sync        # skip the iCloud copy
+    python update_database.py --no-data        # sync the site but not output/
     python update_database.py --affiliations 400   # also fetch affiliations
 
 What it does, in order:
@@ -17,8 +18,9 @@ What it does, in order:
 3. Validates and exports CSV/JSON.
 4. Optionally fetches per-author affiliations, newest years first.
 5. Rebuilds the static site and the master index.
-6. Copies changed files to iCloud - and only changed files, compared by
-   content hash, so iCloud is not handed thousands of identical writes.
+6. Copies changed files to iCloud - the browsable site at the folder root,
+   your marks under userdata/, and the dataset under output/. Only changed
+   files are copied, so iCloud is not handed thousands of identical writes.
 
 Your marks are never touched by steps 2-5: they live in userdata/annotations.json,
 outside the scraped dataset.
@@ -298,8 +300,8 @@ def main(argv: List[str] | None = None) -> int:
                         help="Rebuild and sync from existing data without hitting the API.")
     parser.add_argument("--icloud-dir", type=Path, default=ICLOUD_DEFAULT,
                         help=f"iCloud destination (default: {ICLOUD_DEFAULT}).")
-    parser.add_argument("--sync-data", action="store_true",
-                        help="Also mirror output/ (JSON+CSV), not just the browsable site/.")
+    parser.add_argument("--no-data", action="store_true",
+                        help="Skip output/ (JSON+CSV); sync only the browsable site/ and your marks.")
     args = parser.parse_args(argv)
 
     started = dt.datetime.now()
@@ -325,7 +327,7 @@ def main(argv: List[str] | None = None) -> int:
 
     # 6. Push to iCloud last, changed files only.
     if icloud_root:
-        trees = ["site", "userdata"] + (["output"] if args.sync_data else [])
+        trees = ["site", "userdata"] + ([] if args.no_data else ["output"])
         sync_to_icloud(icloud_root, trees)
     else:
         logger.info("--no-sync: iCloud copy skipped.")

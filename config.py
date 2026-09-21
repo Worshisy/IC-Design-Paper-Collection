@@ -143,7 +143,15 @@ class ScraperConfig:
     rate_limit_seconds: float = 1.5
     # The per-document authors endpoint is one call per paper, so it gets a
     # shorter delay than the search API to keep backfills tractable.
-    affiliation_rate_limit_seconds: float = 0.4
+    # Requests are serialised by latency (~0.9 s), not by this delay, so
+    # throughput comes from running several in parallel. The shared rate
+    # limiter still paces when each one may START, and widens that spacing
+    # automatically if IEEE starts pushing back.
+    # Measured the hard way: 6 workers at ~7 req/s drew an HTTP 418
+    # (anti-bot) inside two minutes, while ~1.4 req/s ran for 3.5 hours
+    # untouched. 3 workers spaced 0.45s caps us at ~2.2 req/s.
+    affiliation_rate_limit_seconds: float = 0.45
+    affiliation_workers: int = 3
     rows_per_page: int = 100
 
     # Adaptive pacing, applied globally across every IEEE request.
@@ -151,8 +159,13 @@ class ScraperConfig:
     # decays back after a run of clean responses, so a slow patch throttles
     # the whole scrape instead of hammering through it.
     rate_limit_jitter: float = 0.3
-    rate_limit_ceiling_seconds: float = 45.0
-    rate_limit_recovery_successes: int = 12
+    rate_limit_ceiling_seconds: float = 30.0
+    rate_limit_recovery_successes: int = 6
+    # Concurrent workers turn ONE upstream hiccup into N failures. Without
+    # this, the floor doubles N times at once and slams into the ceiling.
+    rate_limit_escalation_cooldown: float = 8.0
+    # A clean stretch this long clears the penalty outright.
+    rate_limit_reset_after_quiet: float = 90.0
     # After this many consecutive failures, pause outright rather than burn
     # retries against an endpoint that is clearly refusing us.
     circuit_break_failures: int = 6

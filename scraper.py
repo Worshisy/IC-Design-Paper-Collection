@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -673,26 +674,41 @@ class Scraper:
             year_data = load_json(path)
             year_changed = False
 
+            # Collect what this year still needs, then fetch in parallel.
+            pending: List[Dict[str, Any]] = []
             for session in year_data.get("sessions", []):
                 for paper in session.get("papers", []):
-                    if max_papers is not None and updated >= max_papers:
-                        break
                     if paper.get("affiliations"):
                         continue
-                    article_number = paper.get("article_number")
-                    if not article_number:
+                    if not paper.get("article_number"):
                         continue
+                    pending.append(paper)
 
-                    if article_number in cache:
-                        affiliations = cache[article_number]
-                    else:
-                        try:
-                            affiliations = self._fetch_author_affiliations(article_number)
-                        except HttpError as exc:
-                            logger.warning(
-                                "[%s] affiliation fetch failed for %s: %s",
-                                year, article_number, exc,
-                            )
+            if max_papers is not None:
+                pending = pending[: max(0, max_papers - updated)]
+
+            to_fetch = [
+                p["article_number"] for p in pending
+                if p["article_number"] not in cache
+            ]
+            to_fetch = list(dict.fromkeys(to_fetch))  # de-duplicate, keep order
+
+            if to_fetch:
+                workers = max(1, int(self.config.affiliation_workers))
+
+                def _lookup(article_number: str):
+                    try:
+                        return article_number, self._fetch_author_affiliations(article_number)
+                    except HttpError as exc:
+                        logger.warning(
+                            "[%s] affiliation fetch failed for %s: %s",
+                            year, article_number, exc,
+                        )
+                        return article_number, None
+
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    for article_number, affiliations in pool.map(_lookup, to_fetch):
+                        if affiliations is None:
                             continue
                         cache[article_number] = affiliations
                         fetched_since_save += 1
@@ -700,18 +716,16 @@ class Scraper:
                             save_json(cache_path, cache)
                             fetched_since_save = 0
 
-                    if not affiliations:
-                        continue
-
-                    paper["affiliations"] = affiliations
-                    paper["author_affiliations_raw"] = "; ".join(
-                        dict.fromkeys(a for a in affiliations if a)
-                    )
-                    updated += 1
-                    year_changed = True
-
-                if max_papers is not None and updated >= max_papers:
-                    break
+            for paper in pending:
+                affiliations = cache.get(paper["article_number"])
+                if not affiliations:
+                    continue
+                paper["affiliations"] = affiliations
+                paper["author_affiliations_raw"] = "; ".join(
+                    dict.fromkeys(a for a in affiliations if a)
+                )
+                updated += 1
+                year_changed = True
 
             if year_changed:
                 save_json(path, year_data)
