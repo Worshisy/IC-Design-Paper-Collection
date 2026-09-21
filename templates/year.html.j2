@@ -30,7 +30,7 @@
         {% if sessions %}
         <div class="chips">
           {% for s in sessions %}
-          <a class="chip" href="#{{ s.anchor_id }}">{{ s.session_number }} · {{ s.session_name }} ({{ s.paper_count }})</a>
+          <a class="chip" href="#{{ s.anchor_id }}">{{ s.session_code }} · {{ s.session_name }} ({{ s.paper_count }})</a>
           {% endfor %}
         </div>
         {% endif %}
@@ -73,7 +73,7 @@
           {% if row.session_number != ns.current %}
             {% set ns.current = row.session_number %}
             <div class="session-row" id="session-{{ row.session_number }}">
-              <span class="tag">Session {{ row.session_number }}</span>{{ row.session_name }}
+              <span class="tag">Session {{ row.session_code }}</span>{{ row.session_name }}
             </div>
           {% endif %}
         <div class="paper-row"

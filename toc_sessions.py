@@ -90,6 +90,7 @@ class TocPaper:
 @dataclass(slots=True)
 class TocProgramme:
     session_names: Dict[int, str] = field(default_factory=dict)
+    session_codes: Dict[int, str] = field(default_factory=dict)
     papers: List[TocPaper] = field(default_factory=list)
     page_sessions: List[Tuple[int, int]] = field(default_factory=list)  # (page, session)
     header_offsets: List[Tuple[int, int, str]] = field(default_factory=list)  # (line, number, name)
@@ -295,9 +296,10 @@ def sessions_from_major_topics(
     for position, heading in enumerate(sorted(grouped, key=sort_key), start=1):
         # "Session 31: Noise-Shaping ADCs" -> keep the descriptive half.
         name = re.sub(r"^\s*Session\s+\d+\s*[:.\-]\s*", "", heading).strip() or heading
+        printed = re.match(r"\s*Session\s+(\d+)", heading, re.IGNORECASE)
         session = {
             "session_number": position,
-            "session_code": str(position),
+            "session_code": printed.group(1) if printed else str(position),
             "session_name": name,
             "papers": grouped[heading],
         }
@@ -334,10 +336,26 @@ def _clean_title(text: str) -> str:
     return TITLE_NOISE_RE.sub("", text or "").strip()
 
 
-def normalise(title: str) -> str:
-    """Comparison key: lowercase alphanumerics only."""
+# LaTeX wrappers that carry no visible text: the programme PDF prints the
+# rendered form ("VO2"), while the stored title holds the source
+# ("$\text{VO}_{2}$"). Strip the macro names so both normalise alike.
+_LATEX_MACRO_RE = re.compile(r"\\(?:text|mathrm|mathbf|mathit|boldsymbol|hbox|mbox|rm|bf|it)\b")
+_LATEX_LEFTOVER_RE = re.compile(r"\\[A-Za-z]+")
 
-    return re.sub(r"[^a-z0-9]+", "", (title or "").lower())
+
+def normalise(title: str) -> str:
+    """
+    Comparison key: lowercase alphanumerics, with LaTeX source neutralised.
+
+    Without this, a title like "$\text{VO}_{2}$ Based Negative..." keys as
+    "textvo2based..." and never matches the programme's "VO2 Based ...",
+    which stranded 40 of ESSCIRC 2025's papers as Unassigned.
+    """
+
+    text = title or ""
+    text = _LATEX_MACRO_RE.sub(" ", text)
+    text = _LATEX_LEFTOVER_RE.sub(" ", text)
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
 
 
 def _normalised_with_map(text: str) -> Tuple[str, List[int]]:
@@ -426,6 +444,34 @@ def _flat_offset(offsets: List[int], raw_index: int) -> int:
     return bisect.bisect_left(offsets, raw_index)
 
 
+# Lines that are clearly not session topics. ESSCIRC's programme puts author
+# affiliations and keynote speaker names in the same position as a heading.
+AFFILIATION_NAME_RE = re.compile(
+    r"(?:univers|instit|laborator|technolog(?:y|ies)\s*,|gmbh|inc\.|ltd|corporation|"
+    r"semiconductor|research\s+cent|academy|college|\bAG\b|\bBV\b|\bSA\b)",
+    re.IGNORECASE,
+)
+# "Firstname Lastname" and nothing else - a speaker, not a topic.
+PERSON_NAME_RE = re.compile(r"^[A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-zA-Z'\-]+$")
+# Trailing ", Country" is the giveaway for an affiliation line.
+COUNTRY_TAIL_RE = re.compile(r",\s*(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*$")
+
+
+def is_plausible_session_name(name: str) -> bool:
+    """Reject affiliations, bare person names and numeric noise."""
+
+    text = (name or "").strip()
+    if len(text) < 4 or len(text) > 110:
+        return False
+    if text[0].isdigit() and COUNTRY_TAIL_RE.search(text):
+        return False          # "4Katholieke Universiteit Leuven, Belgium"
+    if AFFILIATION_NAME_RE.search(text) and COUNTRY_TAIL_RE.search(text):
+        return False
+    if PERSON_NAME_RE.match(text):
+        return False          # "Luca Benini"
+    return True
+
+
 def _next_nonempty(lines: List[str], index: int) -> str:
     for line in lines[index + 1: index + 4]:
         if line.strip():
@@ -476,6 +522,7 @@ def parse_programme(text: str) -> TocProgramme:
             name = numbered.group("name").strip()
             if name and len(name) < 120:
                 programme.session_names.setdefault(number, name)
+                programme.session_codes.setdefault(number, str(number))
                 current_session = number
             continue
 
@@ -494,12 +541,21 @@ def parse_programme(text: str) -> TocProgramme:
                     for j in range(index + 1, min(index + 6, len(lines)))
                 )
             ):
+                plenary = re.match(
+                    r"^((?:PLENARY|KEYNOTE)\s*\d*)\s*:\s*(.*)$", stripped, re.IGNORECASE
+                )
+                if plenary:
+                    # "PLENARY 1: Marc Biron" - the session is the plenary, not
+                    # the speaker, so keep the label rather than the name.
+                    name = plenary.group(1).strip().title()
+                elif is_plausible_session_name(stripped):
+                    name = stripped
+                else:
+                    continue
+
                 letter_counter += 1
-                name = re.sub(
-                    r"^(?:PLENARY|KEYNOTE)\s*\d*\s*:\s*", "", stripped, flags=re.IGNORECASE
-                ).strip()
-                programme.session_names.setdefault(letter_counter, name or stripped)
-                programme.header_offsets.append((index, letter_counter, name or stripped))
+                programme.session_names.setdefault(letter_counter, name)
+                programme.header_offsets.append((index, letter_counter, name))
                 current_session = letter_counter
                 continue
 
@@ -509,6 +565,8 @@ def parse_programme(text: str) -> TocProgramme:
             letter_counter += 1
             pending_letter_name = letter.group("name").strip()
             programme.session_names.setdefault(letter_counter, pending_letter_name)
+            # "Mo1B" is what the proceedings prints; keep it for display.
+            programme.session_codes.setdefault(letter_counter, letter.group("code").upper())
             current_session = letter_counter
             continue
 
@@ -603,7 +661,7 @@ def assign_sessions(
         entry = sessions[number]
         session = {
             "session_number": position,
-            "session_code": str(number) if number else "",
+            "session_code": programme.session_codes.get(number) or (str(number) if number else ""),
             "session_name": name,
             "papers": entry["papers"],
         }

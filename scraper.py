@@ -667,6 +667,7 @@ class Scraper:
             if topics:
                 applied, detail = toc.sessions_from_major_topics(year_data, topics)
                 if applied:
+                    self._apply_track_filter(year, year_data)
                     save_json(year_path, year_data)
                     logger.info("[%s %s] sessions from %s", self.config.conference_id, year, detail)
                     return True
@@ -714,12 +715,27 @@ class Scraper:
             logger.info("[%s %s] programme not applied: %s", self.config.conference_id, year, detail)
             return False
 
+        self._apply_track_filter(year, year_data)
         save_json(year_path, year_data)
         logger.info(
             "[%s %s] sessions from programme: %s",
             self.config.conference_id, year, detail,
         )
         return True
+
+    def _apply_track_filter(self, year: int, year_data: Dict[str, Any]) -> None:
+        """Drop the devices half of a merged conference, where we know it."""
+
+        if self.config.conference_id != "esscirc":
+            return
+        import esserc_tracks
+
+        sessions, papers = esserc_tracks.drop_device_content(year, year_data)
+        if sessions or papers:
+            logger.info(
+                "[esscirc %s] dropped %d device session(s) and %d device paper(s)",
+                year, sessions, papers,
+            )
 
     def enrich_sessions_all(
         self,

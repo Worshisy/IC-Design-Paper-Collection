@@ -57,10 +57,12 @@ def _flatten_papers(year_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     for session in year_data.get("sessions", []):
         session_number = session.get("session_number")
         session_name = session.get("session_name", "")
+        session_code = session.get("session_code") or str(session_number)
         for paper in session.get("papers", []):
             row = {
                 "year": year_data.get("year"),
                 "session_number": session_number,
+                "session_code": session_code,
                 "session_name": session_name,
                 "paper_number": paper.get("paper_number", ""),
                 "title": paper.get("title", ""),
@@ -87,6 +89,7 @@ def _build_session_overview(year_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         overview.append(
             {
                 "session_number": session.get("session_number"),
+                "session_code": session.get("session_code") or str(session.get("session_number")),
                 "session_name": session.get("session_name", ""),
                 "paper_count": len(papers),
                 "anchor_id": f"session-{session.get('session_number')}",

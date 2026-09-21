@@ -94,6 +94,33 @@ SKIP_TITLES = frozenset({
     "monday poster session", "tuesday poster session", "wednesday poster session",
     "index author", "detailed author index", "brief author index",
     "hub page", "opinion", "teaser abstract", "breaker page",
+    # Enumerated from the rendered pages, 2026-09-21.
+    "index of authors", "index to authors", "detailed author index",
+    "conference timetable", "conference layout", "conference space layout",
+    "technical co-sponsors", "joint plenary talks", "joint plenary speakers",
+    "keynote speakers", "keynote papers", "invited papers", "contributed papers",
+    "chairs' message", "chairs message", "organizers", "cover", "ad page",
+    "student forum", "student research preview", "girafe forum",
+    "educational events - tutorials", "reflections", "foreward",
+    "paper withdrawn by author", "[paper withdrawn by author]",
+    "pdf not available [paper withdrawn by author]",
+    "isscc awards", "isscc aards", "isscc glossary",
+    # Conference logistics, enumerated from the rendered pages 2026-09-21.
+    "about page", "about cp", "[about cp]", "hub page", "end breaker",
+    "abstracts cards", "[pdf viewing instructions]", "[org committee photos]",
+    "committee photos", "conference overview", "conference schedule",
+    "floor map", "session quick index", "guest program", "technical program",
+    "program booklet", "full program", "program schedule", "rfic schedule",
+    "rfic program", "educational session", "educational sessions",
+    "luncheon talk", "plenary speakers", "vlsi forum", "preface",
+    "[causal productions]", "about causal productions",
+    "[announcements: future conferences]", "information on future special issues",
+    "[paper not available", "paper not available", "m-12 withdrawn",
+    "social events/guest program", "workshops and short courses",
+    # Journal boilerplate enumerated from the rendered pages.
+    "paper submission", "best paper award", "predoctoral achievement awards",
+    "call for fellow nominations", "solid-state circuits newsletter",
+    "editori-in-chief call for applicants", "editor-in-chief call for applicants",
     # IEEE house adverts. Recent ones carry no abstract at all, so the
     # "Advertisement:" prefix rule cannot see them.
     "myieee", "join ieee", "ieee access", "ieee dataport", "open access",
@@ -186,6 +213,80 @@ SKIP_PATTERNS = (
     re.compile(r"title page\]?$", re.IGNORECASE),
     re.compile(r"^steering committee\b", re.IGNORECASE),
     re.compile(r"^copyright\b", re.IGNORECASE),
+    # --- enumerated from the rendered pages, 2026-09-21 (second pass) ---
+    # RFIC 2013/2014 embed their own session index as fake papers:
+    # "Session: RMO1A: Low-power pulse-based radios".
+    re.compile(r"^session\s*:\s*\S+\s*:", re.IGNORECASE),
+    # USB/CD media artwork and wrappers.
+    re.compile(r"^\[?(?:usb|cd)\b.*(?:label|welcome|art)", re.IGNORECASE),
+    re.compile(r"^\[?about\s+cp\b", re.IGNORECASE),
+    re.compile(r"\bhub\s+page$", re.IGNORECASE),
+    re.compile(r"\bbreaker\s+page$", re.IGNORECASE),
+    re.compile(r"\bguest\s+program$", re.IGNORECASE),
+    re.compile(r"\bopinion$", re.IGNORECASE),
+    # Programme / schedule / map documents whatever the prefix.
+    re.compile(r"\b(?:technical\s+program|program\s+booklet|full\s+program|"
+               r"program\s+schedule|conference\s+schedule|floor\s+maps?|"
+               r"session\s+quick\s+index)\b", re.IGNORECASE),
+    re.compile(r"^\w+\s+schedule\s*\d{0,4}$", re.IGNORECASE),
+    # Committee listings that name the conference first.
+    re.compile(r"\bconference\s*\([A-Z]+\)\s*committees$", re.IGNORECASE),
+    re.compile(r"\bsymposium\s+committees$", re.IGNORECASE),
+    re.compile(r"\bcommittees$", re.IGNORECASE),
+    # Withdrawn / unavailable placeholders.
+    re.compile(r"^\[?paper\s+not\s+available", re.IGNORECASE),
+    re.compile(r"^[a-z]-?\d+\s+withdrawn$", re.IGNORECASE),
+    # Educational sessions and short courses as programme entries.
+    re.compile(r"\beducational\s+sessions?\b", re.IGNORECASE),
+    re.compile(r"\bshort\s+course\s+program\b", re.IGNORECASE),
+    re.compile(r"\bsunday\s+workshop\b|\bfriday\s+forum\b", re.IGNORECASE),
+    # Journal: annual index volumes, with or without the spaces IEEE drops.
+    re.compile(r"^\d{4}\s*index\s*ieee\b", re.IGNORECASE),
+    # Journal: membership and society promotion.
+    re.compile(r"\bmembership\s+application$", re.IGNORECASE),
+    re.compile(r"^ieee\s+membership\s+can\s+help", re.IGNORECASE),
+    re.compile(r"^expand\s+your\s+professional\s+network", re.IGNORECASE),
+    re.compile(r"^join\s+ieee\b", re.IGNORECASE),
+    re.compile(r"^celebrating\s+the\s+vitality\s+of\s+technology", re.IGNORECASE),
+    re.compile(r"\bundergraduate/pre-?graduate\s+scholarships$", re.IGNORECASE),
+    re.compile(r"\bwomen\s+in\s+engineering\s+advertisement\]", re.IGNORECASE),
+    # Journal: calls for papers and special-issue announcements. These carry
+    # IEEE's "Describes the above-named upcoming special issue" boilerplate,
+    # so the abstract rule catches most; this covers the ones with none.
+    re.compile(r"^call\s+for\s+(?:papers|nominations|applicants)\b", re.IGNORECASE),
+    re.compile(r"^special\s+issue\s+(?:on|for|metamaterials)\b", re.IGNORECASE),
+    re.compile(r"\bcall\s+for\s+papers\]?$", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+mtt-s\s+awards$", re.IGNORECASE),
+    # --- enumerated from the rendered pages, 2026-09-21 ---
+    # Awards round-ups, including IEEE's own "Aards" typo and bracketed counts.
+    re.compile(r"^(?:isscc\s+)?a[aw]ards?\b", re.IGNORECASE),
+    re.compile(r"\baards?\s*&|\bawards?\s*&\s*ieee", re.IGNORECASE),
+    # Short courses, tutorials, workshops and forums as programme entries.
+    re.compile(r"^short\s+course\b", re.IGNORECASE),
+    re.compile(r"^workshop\s+on\b", re.IGNORECASE),
+    re.compile(r"\btutorials?$", re.IGNORECASE),
+    re.compile(r"^(?:isscc|rfic|cicc|esscirc|esserc)\s+\d{4}\s+(?:tutorial|short\s+course|forum|index|conference|breaker|reflections|foreword|awards?|ad\s+page|cover|organizers)", re.IGNORECASE),
+    re.compile(r"^es\d*\s*:\s*student\s+research", re.IGNORECASE),
+    re.compile(r"^se\d+\s", re.IGNORECASE),
+    re.compile(r"^td\s*:\s", re.IGNORECASE),
+    # Withdrawn-paper placeholders.
+    re.compile(r"withdrawn\s+by\s+(?:author|isscc)", re.IGNORECASE),
+    re.compile(r"^pdf\s+not\s+available", re.IGNORECASE),
+    # Committee / subcommittee listings in any phrasing.
+    re.compile(r"\bitpc\b.*\bsubcommittee\b", re.IGNORECASE),
+    re.compile(r"\bsubcommittee$", re.IGNORECASE),
+    # Glossaries and keyword indexes.
+    # Anchored: "ISSCC glossary" is front matter, "A Glossary of Terms for
+    # Sigma-Delta Converters" is a real paper.
+    re.compile(r"\bglossary$", re.IGNORECASE),
+    re.compile(r"\[keyword\s+index\]|\[acronym\s+list\]", re.IGNORECASE),
+    # Anniversary / history material.
+    re.compile(r"^\d{1,3}\s+years\s+of\b", re.IGNORECASE),
+    re.compile(r"^history\s+of\s+papers\b", re.IGNORECASE),
+    re.compile(r"anniversary\s+(?:photos|author\s+honor\s+roll)", re.IGNORECASE),
+    # Online-proceedings wrapper records.
+    re.compile(r"\bon\s*line\s+proceedings$", re.IGNORECASE),
+    re.compile(r"^esscirc\s+\d{4}\s*-\s*ieee\s+\d+(?:st|nd|rd|th)\s+european", re.IGNORECASE),
     re.compile(r"^\d{4}\s*index\b", re.IGNORECASE),
     re.compile(r"^patents?\s+abstracts?$", re.IGNORECASE),
     re.compile(r"^\d{4}\s+ieee\s+membership\s+form", re.IGNORECASE),
@@ -306,15 +407,25 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+# IEEE appends layout markers to some session headers: 25 of ISSCC 2002's
+# 26 sessions came through as 'image sensors [breaker page]'.
+SESSION_NAME_NOISE_RE = re.compile(
+    r"\s*\[(?:breaker\s*page|continued|cont\.?|front\s*cover|back\s*cover)\]\s*$",
+    re.IGNORECASE,
+)
+
+
 def _clean_session_name(raw_name: Optional[str]) -> str:
-    """Normalise session names: remove 'Overview:' prefix."""
+    """Normalise a session name: drop Overview:, layout markers, old markup."""
 
     if not raw_name:
         return ""
     name = raw_name.strip()
     name = re.sub(r"^Overview\s*[:\-–]\s*", "", name, flags=re.IGNORECASE)
-    return name
-
+    name = SESSION_NAME_NOISE_RE.sub("", name)
+    # Session names never went through this, so legacy markup showed on the
+    # page: "filters and continuous-time /spl Delta//spl Sigma/ converters".
+    return clean_text(name).strip()
 
 def _is_front_matter(title: str) -> bool:
     """Check whether the title indicates structural front matter or non-paper content."""
