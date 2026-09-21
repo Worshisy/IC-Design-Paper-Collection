@@ -274,6 +274,31 @@ FRONT_MATTER_ABSTRACT_PREFIXES = (
 # carries this auto-generated keyword-list abstract, and must not be dropped.
 KEYWORD_LIST_ABSTRACT = "the following topics are dealt with"
 
+# Programme items - schedules, panels, social events - listed among the
+# papers. Treated as front matter ONLY when the record has no authors: a real
+# paper called "Panel-Sized TFT-LCD Column Driver" (8 authors) and an invited
+# "Keynote speaker: Massive MIMO ..." (2 authors) must both survive.
+PROGRAMME_TITLE_RE = re.compile(
+    r"^(?:"
+    r"listing|schedule|maps?|about|registration|transportation|"
+    r"workshops?|workshop\s+on|panel\s+sessions?|"
+    r"social(?:\s+and\s+special)?\s+events?|special\s+events?|"
+    r"poster\s+sessions?|student\s+research\s+preview|"
+    r"industry\s+showcase|committee\s+photos?|"
+    r"special\s+session|career\s+panel|plenary\s+speakers?|"
+    r"plenary\s+session|plenary,|foreward|demo\s+session|"
+    r"networking|closing\s+remarks?|opening\s+remarks?"
+    r")(?=$|[\s:,.])",   # not \b: that matches before a hyphen,
+                             # turning "About-Face: A ..." into front matter
+    re.IGNORECASE,
+)
+
+
+# Programme items - schedules, panels, social events - that are listed among
+# the papers. These are only front matter when the record has NO authors: a
+# real paper called "Panel-Sized TFT-LCD Column Driver" (8 authors) and an
+# invited "Keynote speaker: Massive MIMO ..." (2 authors) must both survive.
+
 
 def _normalize_whitespace(text: str) -> str:
     """Collapse internal whitespace to single spaces and strip ends."""
@@ -314,6 +339,10 @@ def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
     """
 
     if _is_front_matter(title):
+        return True
+
+    # Authorless programme items (schedules, panels, social events).
+    if not rec.get("authors") and PROGRAMME_TITLE_RE.match(title.strip()):
         return True
 
     abstract = (rec.get("abstract") or "").strip().lower()

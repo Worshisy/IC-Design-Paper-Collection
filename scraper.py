@@ -613,7 +613,16 @@ class Scraper:
     def _toc_pdf_path(self, year: int) -> Path:
         return self.config.cache_dir / "toc" / f"{year}.pdf"
 
-    def enrich_sessions_from_toc(self, year: int) -> bool:
+    @staticmethod
+    def _lacks_sessions(year_data: Dict[str, Any]) -> bool:
+        """True when a year has no real session structure worth keeping."""
+
+        # One session holding an entire year is collapsed, whatever it is
+        # called - ISSCC 2006 came back as a single session named "SRAM"
+        # containing all 304 papers, which a name check would have missed.
+        return len(year_data.get("sessions", [])) <= 1
+
+    def enrich_sessions_from_toc(self, year: int, only_if_missing: bool = True) -> bool:
         """
         Rebuild a year's sessions from the proceedings Table of Contents.
 
@@ -634,6 +643,13 @@ class Scraper:
             records = load_json(records_path)
             year_data = load_json(year_path)
         except (OSError, ValueError):
+            return False
+
+        if only_if_missing and not self._lacks_sessions(year_data):
+            logger.debug(
+                "[%s %s] already has sessions; leaving it alone",
+                self.config.conference_id, year,
+            )
             return False
 
         # 1. Preferred: IEEE's own session headings from the TOC endpoint.
@@ -709,6 +725,7 @@ class Scraper:
         self,
         start_year: Optional[int] = None,
         end_year: Optional[int] = None,
+        only_if_missing: bool = True,
     ) -> int:
         """Apply the programme to every cached year. Returns years improved."""
 
@@ -725,7 +742,7 @@ class Scraper:
                 continue
             if end_year is not None and year > end_year:
                 continue
-            if self.enrich_sessions_from_toc(year):
+            if self.enrich_sessions_from_toc(year, only_if_missing=only_if_missing):
                 improved += 1
         logger.info(
             "%s: programme applied to %d of %d years.",

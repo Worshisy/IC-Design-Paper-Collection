@@ -69,6 +69,39 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         "is_journal": True,
         "fixed_punumber": "22",
     },
+    "esscirc": {
+        "name": "ESSCIRC",
+        "search_term": "ESSCIRC",
+        # The conference has been published under many names: "Proceedings of
+        # the 26th European Solid-State Circuits Conference" (2000), "2010
+        # Proceedings of ESSCIRC", "ESSCIRC 2023 - IEEE 49th ...", and from
+        # 2024 "IEEE European Solid-State Electronics Research Conference
+        # (ESSERC)" after merging with ESSDERC. Search several spellings.
+        "search_terms": [
+            "ESSCIRC",
+            "ESSERC",
+            "European Solid-State Circuits Conference",
+            "European Solid-State Electronics Research Conference",
+        ],
+        "title_contains": "",
+        "title_includes_any": [
+            "european solid state circuits conference",
+            "european solid state electronics research",
+            "esscirc",
+            "esserc",
+        ],
+        # A-SSCC is the Asian conference and matches "solid state circuits
+        # conference" too; ESSDERC is the devices half, published separately
+        # before the 2024 merger.
+        "title_excludes_any": ["asian", "a sscc", "essderc"],
+        # ESSCIRC through 2023 IS the circuits conference, so nothing to
+        # filter. From 2024 ESSERC merges in ESSDERC's devices half, but -
+        # unlike VLSI - its programme does not label the tracks, so circuits
+        # and devices sessions can only be told apart semantically
+        # ("Amplifiers" vs "Advanced Silicon Devices"). Left off rather than
+        # guessed; see ONGOING.md.
+        "circuits_only": False,
+    },
     "vlsi": {
         "name": "VLSI",
         "search_term": "Symposium on VLSI Technology and Circuits",

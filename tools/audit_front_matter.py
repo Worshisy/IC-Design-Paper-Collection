@@ -28,6 +28,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from parser import _is_front_matter, _is_front_matter_record  # noqa: E402
 
+# (record, title, must_be_filtered) - programme items are front matter only
+# when authorless, so these need the record, not just the title.
+RECORD_CASES: list[tuple[dict, str, bool]] = [
+    ({"authors": []}, "Listing", True),
+    ({"authors": []}, "Career Panel: Chip In for Change", True),
+    ({"authors": []}, "Social events", True),
+    ({"authors": []}, "Workshops", True),
+    ({"authors": []}, "Workshop on analog telecom and circuit concepts", True),
+    ({"authors": []}, "Panel sessions", True),
+    ({"authors": []}, "Student research preview", True),
+    ({"authors": []}, "Committee photos", True),
+    ({"authors": []}, "Plenary Speaker 1: Wireless spectrum challenges", True),
+    ({"authors": []}, "Maps", True),
+    ({"abstract": "Advertisement: IEEE."}, "Introducing IEEE Collabratec", True),
+    # Real papers and talks that must survive all of the above.
+    ({"authors": [1] * 8}, "Panel-Sized TFT-LCD Column Driver", False),
+    ({"authors": [1, 1]}, "Keynote speaker: Massive MIMO active antenna arrays", False),
+    ({"authors": []}, "About-Face: A Reconfigurable Beamformer", False),
+    ({"authors": []}, "Mapping Techniques for Neural Accelerators", False),
+    ({"authors": []}, "Scheduler-Aware Memory Controller", False),
+    ({"authors": []}, "A 28nm Schedule-Aware DVFS Controller", False),
+]
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # (title, must_be_filtered). The False cases matter most: each one is a real

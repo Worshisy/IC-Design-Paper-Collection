@@ -70,7 +70,9 @@ BARE_SESSION_RE = re.compile(r"^\s*SESSION\s+(\d{1,3})\s*$", re.IGNORECASE)
 # "1.1 - 8:35 a.m." - dotted code, en-dash separator (VLSI, older years).
 DOTTED_CODE_RE = re.compile(r"^\s*(\d{1,2})\.(\d{1,3})\s*[\u2013\u2014-]")
 PAGE_MARKER_RE = re.compile(r"^\s*Page\s+(\d{1,5})\s*$", re.IGNORECASE)
-CHAIR_RE = re.compile(r"^\s*(?:Chair|Chaired by|Co-Chair)\b", re.IGNORECASE)
+CHAIR_RE = re.compile(r"^\s*(?:Chair|Chaired by|Co-Chair)", re.IGNORECASE)
+# The metadata block that follows a session heading in ESSCIRC/ESSERC.
+SESSION_BLOCK_RE = re.compile(r"^\s*(?:Date|Room|Time)\s*:", re.IGNORECASE)
 
 # Noise that appears in front of a real title.
 TITLE_NOISE_RE = re.compile(
@@ -90,6 +92,7 @@ class TocProgramme:
     session_names: Dict[int, str] = field(default_factory=dict)
     papers: List[TocPaper] = field(default_factory=list)
     page_sessions: List[Tuple[int, int]] = field(default_factory=list)  # (page, session)
+    header_offsets: List[Tuple[int, int, str]] = field(default_factory=list)  # (line, number, name)
 
 
 # ----------------------------------------------------------------------
@@ -350,7 +353,9 @@ def _normalised_with_map(text: str) -> Tuple[str, List[int]]:
 
 
 def match_by_position(
-    papers: List[Dict[str, Any]], text: str
+    papers: List[Dict[str, Any]],
+    text: str,
+    extra_headers: Optional[List[Tuple[int, int, str]]] = None,
 ) -> Tuple[Dict[int, int], Dict[int, str]]:
     """
     Assign papers to sessions by where their titles sit in the programme.
@@ -379,6 +384,19 @@ def match_by_position(
             continue
         flat_at = _flat_offset(offsets, match.start())
         headings.append((flat_at, int(number), name))
+    # Headers found line-wise by parse_programme (ESSCIRC/ESSERC style).
+    if extra_headers:
+        line_starts: List[int] = []
+        running = 0
+        for line in text.splitlines():
+            line_starts.append(running)
+            running += len(line) + 1
+        for line_index, number, name in extra_headers:
+            if 0 <= line_index < len(line_starts):
+                headings.append(
+                    (_flat_offset(offsets, line_starts[line_index]), number, name)
+                )
+
     headings.sort()
     if not headings:
         return {}, {}
@@ -406,6 +424,13 @@ def match_by_position(
 def _flat_offset(offsets: List[int], raw_index: int) -> int:
     import bisect
     return bisect.bisect_left(offsets, raw_index)
+
+
+def _next_nonempty(lines: List[str], index: int) -> str:
+    for line in lines[index + 1: index + 4]:
+        if line.strip():
+            return line
+    return ""
 
 
 def parse_programme(text: str) -> TocProgramme:
@@ -453,6 +478,30 @@ def parse_programme(text: str) -> TocProgramme:
                 programme.session_names.setdefault(number, name)
                 current_session = number
             continue
+
+        # ESSCIRC/ESSERC print no session codes. A session header is the line
+        # directly above the "Date: / Room: / Chair(s):" block. Anchoring on
+        # "Chair(s):" alone also catches the speaker name and affiliation that
+        # sit above it inside plenary entries.
+        if SESSION_BLOCK_RE.match(_next_nonempty(lines, index)):
+            stripped = line.strip()
+            if (
+                stripped
+                and 3 < len(stripped) < 90
+                and not SESSION_BLOCK_RE.match(stripped)
+                and any(
+                    CHAIR_RE.match(lines[j])
+                    for j in range(index + 1, min(index + 6, len(lines)))
+                )
+            ):
+                letter_counter += 1
+                name = re.sub(
+                    r"^(?:PLENARY|KEYNOTE)\s*\d*\s*:\s*", "", stripped, flags=re.IGNORECASE
+                ).strip()
+                programme.session_names.setdefault(letter_counter, name or stripped)
+                programme.header_offsets.append((index, letter_counter, name or stripped))
+                current_session = letter_counter
+                continue
 
         # RFIC-style: a "Code : Name" line, confirmed by a nearby Chair line.
         letter = LETTER_SESSION_RE.match(line)
@@ -516,7 +565,9 @@ def assign_sessions(
     by_title = _match_by_title(papers, programme)
     by_position, position_names = ({}, {})
     if raw_text:
-        by_position, position_names = match_by_position(papers, raw_text)
+        by_position, position_names = match_by_position(
+            papers, raw_text, extra_headers=programme.header_offsets
+        )
 
     options = [("page", by_page), ("title", by_title), ("position", by_position)]
     strategy, mapping = max(options, key=lambda item: len(item[1]))
