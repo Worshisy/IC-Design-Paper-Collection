@@ -33,11 +33,6 @@ Status: a re-scrape drops 20 (2024) and 5 (2026) Circuits-looking papers that ar
 Done when: Yi decides, and they are added by override or programme, not by loosening `drop_unknown`.
 Next: Yi's decision. For 2026, 136 + 5 = 141 matches the count `vlsi_tracks.py` documents.
 
-## Thread: GitHub publication   (owner: Claude, updated 2026-09-21)
-Status: not started; the remote has never received this work.
-Done when: scripts and docs are pushed and `git status` shows no dataset files.
-Next: confirm `.gitignore` covers `output/`, `site/`, `cache/`, `userdata/` and `data/session_overrides.tsv` (it holds titles, so it is dataset). Then ask Yi before pushing.
-
 ## Thread: cosmetic viewer items   (owner: Claude, updated 2026-09-21)
 Status: open, low priority; evidence in `scratch/_agent-out-htmlreview.md`.
 - [ ] `site/sscl/early_access.html` is orphaned (not linked from its index).
@@ -47,5 +42,4 @@ Status: open, low priority; evidence in `scratch/_agent-out-htmlreview.md`.
 ## Backlog
 - Yi reviews the `# [c]` code from the abstract and pacing work: `textclean.py`, `utils.py`, `config.py`, `scraper.py`, `tools/restore_abstracts.py`, `tools/repair_abstract_markup.py`, `html_builder.py` (surveys index).
 - 14 abstracts the 2026-11-01 restore could not fetch (4,717/4,731); re-run `tools/restore_abstracts.py` some day, it picks up only those.
-- Close the Mac SOCKS tunnel (`ssh -D 127.0.0.1:18180`) once Yi agrees; nothing uses it now.
 - Check the search page's default columns and widths on the wide monitor (`COLUMNS` in `search.html.j2`).
