@@ -12,6 +12,11 @@ cache/
 # Track it instead if you want a second sync path - see ONGOING.md.
 userdata/
 
+# Vendored MathJax (third-party, Apache-2.0). 4 MB of upstream bundle that the
+# build fetches by itself when missing, so it does not belong in a repo that
+# carries scripts only.
+assets/mathjax/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -26,3 +31,14 @@ Thumbs.db
 .DS_Store
 .idea/
 .vscode/
+
+# topic surveys: work/ and out/ hold IEEE titles and abstracts (AGENTS rule 2)  [c]
+surveys/*/work/
+surveys/*/out/
+
+# Curated per-paper lists and copied programme text: dataset, not script (2026-11-02)  [c]
+data/session_overrides.tsv
+data/vlsi_technology_papers.txt
+/esscirc20*.txt
+/session_*.txt
+scratch/_agent-out-*.md

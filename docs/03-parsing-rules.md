@@ -92,10 +92,11 @@ property of the data, not a parser limitation:
 | ISSCC | Explicit `Session N Overview:` records | Real named sessions |
 | RFIC | None — sessions exist only in the printed programme | One `"General"` session |
 | VLSI | None | One `"General"` session |
+| A-SSCC | None | One `"General"` session, until the printed programme is read: that recovers all 21 years |
 | CICC | Each session opens with an untitled invited talk, not machine-distinguishable from a paper | One `"General"` session |
 | Journals | Grouped by volume/issue instead | `"Vol. 61, Issue 3"` |
 
-A single `"General"` session for RFIC/VLSI/CICC is the honest outcome. Do not
+A single `"General"` session for RFIC/VLSI/CICC/A-SSCC is the honest outcome. Do not
 "fix" it by guessing session boundaries from page numbers or topic shifts —
 that invents structure the source does not have.
 
@@ -163,6 +164,24 @@ Older records carry pre-Unicode IEEE markup and undecoded HTML entities.
 `textclean.py` converts both at parse time — see `01-architecture.md`.
 Unknown `/spl …/` names are left untouched rather than guessed at, so an
 unmapped name stays visible instead of silently becoming the wrong character.
+
+Full abstracts from `/rest/document/<n>/abstract` carry a third kind:
+JATS/MathML tags with attributes, such as `<sup xmlns:mml="…">2</sup>`,
+`<inline-formula><tex-math>$N$</tex-math></inline-formula>`, `<tex>`,
+`<para>`, `<xref>` and `<etal/>`. Before 2026-11-02 the cleaner knew only bare
+tags. It dropped `</sup>` and left the opening tag, so 17,974 abstracts showed
+raw markup. `_strip_markup` now renders them:
+
+- formulas become their LaTeX, which MathJax draws;
+- superscripts and subscripts become Unicode where it has the character, else
+  `^x` / `_x`;
+- references, paragraph breaks, `et al.` and links become plain text.
+
+It also repairs the damaged form, an opening `<sup>` with no closing tag, by
+taking the next token. Only listed tag names are touched, because abstracts
+hold real `<` ("BER<10⁻¹²", "Ω<Re{Z}"). Checked on 2026-11-02: known-answer
+cases pass, and 144,606 raw search-API texts clean exactly as before.
+Stored text is re-cleaned with `tools/repair_abstract_markup.py`.
 
 ## 7. What is deliberately not inferred
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +23,9 @@ class YearSummary:
     total_sessions: int
     total_papers: int
 
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parent
 
 def _get_templates_dir() -> Path:
     """Return the directory containing Jinja2 templates."""
@@ -58,13 +63,17 @@ def _flatten_papers(year_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         session_number = session.get("session_number")
         session_name = session.get("session_name", "")
         session_code = session.get("session_code") or str(session_number)
-        for paper in session.get("papers", []):
+        # Derive the displayed number here rather than trusting the stored one.
+        # The header reads "Session <code>", so its papers must read
+        # "<code>.1", "<code>.2" - several code paths built the stored number
+        # from a positional counter instead, and the two disagreed on screen.
+        for index, paper in enumerate(session.get("papers", []), start=1):
             row = {
                 "year": year_data.get("year"),
                 "session_number": session_number,
                 "session_code": session_code,
                 "session_name": session_name,
-                "paper_number": paper.get("paper_number", ""),
+                "paper_number": f"{session_code}.{index}" if session_code else str(index),
                 "title": paper.get("title", ""),
                 "abstract": paper.get("abstract", ""),
                 "authors": paper.get("authors", []),
@@ -73,6 +82,7 @@ def _flatten_papers(year_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "paper_url": paper.get("paper_url") or "",
                 "doi": paper.get("doi"),
                 "displayed_paper_number": paper.get("displayed_paper_number"),
+                "citation_count": paper.get("citation_count"),  # [c]
             }
             rows.append(row)
 
@@ -369,11 +379,280 @@ def build_master_index(site_root: Path, conference_ids: List[str]) -> None:
         for cid in conference_ids
         if cid in CONFERENCES
     ]
-    html = template.render(conferences=conferences)
+    n_surveys = build_surveys_index(site_root)  # [c]
+    html = template.render(conferences=conferences, n_surveys=n_surveys)
     out_path = site_root / "index.html"
     out_path.write_text(html, encoding="utf-8")
     logger.info("Wrote master index to %s", out_path)
 
+
+def build_surveys_index(site_root: Path) -> int:  # [c]
+    """Copy each finished topic survey (surveys/<topic>/out/) into site/surveys/ and write its index."""
+
+    import json
+    import shutil
+
+    metas = []
+    for meta_path in sorted((_project_root() / "surveys").glob("*/out/meta.json")):
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        report = meta_path.parent / meta["report"]
+        if not report.exists():
+            continue
+        ensure_dir(site_root / "surveys")
+        shutil.copy2(report, site_root / "surveys" / report.name)
+        metas.append(meta)
+    if not metas:
+        return 0
+    metas.sort(key=lambda m: m.get("candidates_run", ""), reverse=True)
+    html = _create_env().get_template("surveys_index.html.j2").render(surveys=metas)
+    (site_root / "surveys" / "index.html").write_text(html, encoding="utf-8")
+    logger.info("Wrote %d topic survey(s) to %s", len(metas), site_root / "surveys")
+    return len(metas)
+
+
+
+
+def _affiliation_entry(paper: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Distinct affiliations plus one index per author.
+
+    ``{"u": [affiliation, ...], "m": [index per author]}``. The per-author list
+    repeats the same employer once per co-author, so the column reads the
+    unique list while the author tooltip follows ``m`` back to each author's
+    own entry. An index of -1 means that author had no affiliation.
+    """
+    unique: List[str] = []
+    per_author: List[int] = []
+    for name in paper.get("affiliations") or []:
+        name = (name or "").strip()
+        if not name:
+            per_author.append(-1)
+            continue
+        if name not in unique:
+            unique.append(name)
+        per_author.append(unique.index(name))
+    if unique:
+        return {"u": unique, "m": per_author}
+
+    # Papers scraped before per-author parsing existed keep only the raw
+    # string: good enough for the column, but there is nothing to hover.
+    raw = (paper.get("author_affiliations_raw") or "").strip()
+    return {"u": [raw], "m": []} if raw else None
+
+
+
+MATHJAX_CDN = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg-full.js"
+
+
+def copy_vendor_assets(site_root: Path) -> None:
+    """Put MathJax inside the site.
+
+    Every page used to pull it from a CDN, which fails exactly where this
+    viewer is meant to work: off a disk, off iCloud on another machine, on a
+    network that cannot reach jsdelivr. A title then shows its raw
+    ``${\\text{dV}}_{\\text{ds}}$`` source. The copy under ``assets/`` is
+    fetched once, and the CDN stays as the fallback in the page itself.
+
+    It must be the ``-full`` bundle. The plain ``tex-svg.js`` fetches TeX
+    extensions lazily, relative to its own URL, so a local copy sends the
+    browser after ``vendor/mathjax/input/tex/extensions/boldsymbol.js`` -
+    which is not there. That failure leaves MathJax half-way through the page
+    and every later pass dies on an offset into a text node it has already
+    rewritten, so no title on the page renders at all.
+    """
+
+    source = _project_root() / "assets" / "mathjax" / "tex-svg-full.js"
+    if not source.exists():
+        ensure_dir(source.parent)
+        try:
+            import urllib.request
+
+            logger.info("Fetching MathJax once into %s", source)
+            with urllib.request.urlopen(MATHJAX_CDN, timeout=60) as response:
+                source.write_bytes(response.read())
+        except Exception as exc:  # offline: the page falls back to the CDN
+            logger.warning("Could not fetch MathJax (%s); pages will use the CDN.", exc)
+            return
+
+    target = site_root / "vendor" / "mathjax" / "tex-svg-full.js"
+    ensure_dir(target.parent)
+    if not target.exists() or target.stat().st_size != source.stat().st_size:
+        shutil.copyfile(source, target)
+        logger.info("Copied MathJax into %s", target)
+
+
+def _citation_dates() -> Dict[str, Dict[str, str]]:  # [c]
+    path = Path(__file__).resolve().parent / "output" / "citations_updated.json"
+    try:
+        data = load_json(path) if path.exists() else {}
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def build_global_search(site_root: Path, conference_ids: List[str]) -> None:
+    """
+    Write a search page covering every source, plus the index it reads.
+
+    The index carries titles, authors and metadata only - about 12 MB across
+    60k papers, which a browser loads without complaint. Abstracts are another
+    24 MB, so they ship as one file per source and are fetched only if the
+    reader switches abstract searching on.
+    """
+
+    from config import CONFERENCES, get_config
+
+    ensure_dir(site_root)
+    records: List[Dict[str, Any]] = []
+    abstracts: Dict[str, Dict[str, str]] = {}
+    affiliations: Dict[str, Dict[str, Any]] = {}
+
+    for conference_id in conference_ids:
+        if conference_id not in CONFERENCES:
+            continue
+        config = get_config(conference_id, create_dirs=False)
+        if not config.json_dir.exists():
+            continue
+        per_source: Dict[str, str] = {}
+        # A journal's early-access file repeats papers that the year file
+        # already carries in its "Early Access" session, so the index would
+        # list them twice. The year record wins: it is what the year page,
+        # which the row links to, actually shows.
+        seen_articles: set = set()
+        per_affil: Dict[str, Any] = {}
+
+        for path in sorted(config.json_dir.glob("*.json")):
+            if not re.fullmatch(r"\d{4}", path.stem):
+                continue
+            try:
+                data = load_json(path)
+            except (OSError, ValueError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            year = data.get("year") or int(path.stem)
+            for session in data.get("sessions", []):
+                for paper in session.get("papers", []):
+                    article = str(paper.get("article_number") or "")
+                    if article:
+                        if article in seen_articles:
+                            continue
+                        seen_articles.add(article)
+                    records.append({
+                        "i": article,
+                        "s": conference_id,
+                        "y": year,
+                        "t": paper.get("title", ""),
+                        "a": "; ".join(paper.get("authors", [])),
+                        "n": session.get("session_name", ""),
+                        "c": session.get("session_code", ""),
+                        "p": paper.get("paper_number", ""),
+                        "u": paper.get("paper_url") or "",
+                        "k": paper.get("citation_count"),  # [c]
+                    })
+                    abstract = (paper.get("abstract") or "").strip()
+                    if abstract and article:
+                        per_source[article] = abstract
+                    affil = _affiliation_entry(paper)
+                    if affil and article:
+                        per_affil[article] = affil
+
+        early = config.json_dir / "early_access.json"
+        if early.exists():
+            try:
+                early_data = load_json(early)
+            except (OSError, ValueError):
+                early_data = {}
+            for paper in early_data.get("papers", []):
+                article = str(paper.get("article_number") or "")
+                if article:
+                    if article in seen_articles:
+                        continue
+                    seen_articles.add(article)
+                records.append({
+                    "i": article,
+                    "s": conference_id,
+                    "y": paper.get("year") or 0,
+                    "t": paper.get("title", ""),
+                    "a": "; ".join(paper.get("authors", [])),
+                    "n": "Early Access",
+                    "c": "",
+                    "p": "",
+                    "u": paper.get("paper_url") or "",
+                    "k": paper.get("citation_count"),  # [c]
+                })
+                abstract = (paper.get("abstract") or "").strip()
+                if abstract and article:
+                    per_source[article] = abstract
+                affil = _affiliation_entry(paper)
+                if affil and article:
+                    per_affil[article] = affil
+
+        if per_source:
+            abstracts[conference_id] = per_source
+        if per_affil:
+            affiliations[conference_id] = per_affil
+
+    # Written as JavaScript, not JSON, and loaded with a <script> tag. The
+    # viewer is opened straight off disk (and off iCloud on another machine),
+    # and browsers refuse fetch()/XHR against file:// URLs - a script tag is
+    # the only way to bring data in without running a server.
+    payload = json.dumps(records, ensure_ascii=False, separators=(",", ":"))
+    (site_root / "search-index.js").write_text(
+        "window.SEARCH_INDEX=" + payload + ";", encoding="utf-8"
+    )
+
+    abstract_dir = site_root / "abstracts"
+    ensure_dir(abstract_dir)
+    for conference_id, mapping in abstracts.items():
+        body = json.dumps(mapping, ensure_ascii=False, separators=(",", ":"))
+        (abstract_dir / f"{conference_id}.js").write_text(
+            "window.SEARCH_ABSTRACTS=window.SEARCH_ABSTRACTS||{};"
+            f'window.SEARCH_ABSTRACTS["{conference_id}"]=' + body + ";",
+            encoding="utf-8",
+        )
+        # Remove the JSON left by earlier builds so the two cannot diverge.
+        stale = abstract_dir / f"{conference_id}.json"
+        if stale.exists():
+            stale.unlink()
+    # Affiliations are another 10 MB, so they follow the abstracts' pattern:
+    # one file per source, loaded only when a column or a scope asks for them.
+    affil_dir = site_root / "affiliations"
+    ensure_dir(affil_dir)
+    for conference_id, mapping in affiliations.items():
+        body = json.dumps(mapping, ensure_ascii=False, separators=(",", ":"))
+        (affil_dir / f"{conference_id}.js").write_text(
+            "window.SEARCH_AFFILS=window.SEARCH_AFFILS||{};"
+            f'window.SEARCH_AFFILS["{conference_id}"]=' + body + ";",
+            encoding="utf-8",
+        )
+
+    stale_index = site_root / "search-index.json"
+    if stale_index.exists():
+        stale_index.unlink()
+
+    sources = [
+        {"id": cid, "name": CONFERENCES[cid]["name"]}
+        for cid in conference_ids
+        if cid in CONFERENCES
+    ]
+    years = sorted({r["y"] for r in records if r["y"]})
+    # Fetch dates written by tools/refresh_citations.py.  # [c]
+    fetched = sorted({
+        date for per_year in (_citation_dates().values()) for date in per_year.values()
+    })
+    html = _create_env().get_template("search.html.j2").render(
+        sources=sources,
+        min_year=years[0] if years else 0,
+        max_year=years[-1] if years else 0,
+        total_papers=len(records),
+        citations_asof=(fetched[0] if len(set(fetched)) == 1 else
+                        f"{fetched[0]} to {fetched[-1]}") if fetched else "",  # [c]
+    )
+    (site_root / "search.html").write_text(html, encoding="utf-8")
+    logger.info(
+        "Wrote global search over %d papers (%d abstract, %d affiliation shards)",
+        len(records), len(abstracts), len(affiliations),
+    )
 
 __all__ = [
     "annotations_path",
@@ -382,5 +661,7 @@ __all__ = [
     "build_year_page",
     "build_index_page",
     "build_master_index",
+    "build_global_search",
+    "copy_vendor_assets",
 ]
 

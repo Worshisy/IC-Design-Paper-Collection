@@ -32,6 +32,8 @@ class Paper:
     article_number: Optional[str] = None
     # Printed first page; used to map papers onto the programme's sessions.
     start_page: Optional[str] = None
+    # IEEE Xplore "Cited by Papers" at fetch time; tools/refresh_citations.py updates it.  # [c]
+    citation_count: Optional[int] = None
 
 
 @dataclass(slots=True)

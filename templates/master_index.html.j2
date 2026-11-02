@@ -45,7 +45,13 @@
   <body>
     <div class="container">
       <h1>IEEE Conference Proceedings Viewer</h1>
-      <p>Select a conference to browse and search papers.</p>
+      <p>Select a conference to browse, or search every source at once.</p>
+      <ul style="margin-bottom:1.25rem">
+        <li><a class="conf-link" href="search.html">Search all sources</a></li>
+        {% if n_surveys %}{# [c] #}
+        <li><a class="conf-link" href="surveys/index.html">Topic surveys ({{ n_surveys }})</a></li>
+        {% endif %}
+      </ul>
       <ul>
         {% for c in conferences %}
         <li><a class="conf-link" href="{{ c.id }}/index.html">{{ c.name }}</a></li>

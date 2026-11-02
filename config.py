@@ -11,6 +11,8 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         "name": "ISSCC",
         "search_term": "ISSCC",
         "title_contains": "solid state circuits conference",
+        # A-SSCC's title contains that phrase too, and is its own source.
+        "title_excludes_any": ["asian", "a sscc"],  # [c]
     },
     "rfic": {
         "name": "RFIC",
@@ -102,6 +104,26 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         # guessed; see ONGOING.md.
         "circuits_only": False,
     },
+    "asscc": {  # [c]
+        "name": "A-SSCC",
+        "search_term": "A-SSCC",
+        # Xplore indexes the early years without the hyphen in the acronym and
+        # does not answer "A-SSCC" for 2005, 2007, 2010 or 2011; "ASSCC" in
+        # turn finds nothing from 2021 on. The spelled-out name finds every
+        # year, so it is the fallback.
+        "search_terms": [
+            "A-SSCC",
+            "ASSCC",
+            "Asian Solid-State Circuits Conference",
+        ],
+        # Hyphens are normalised to spaces, which also matches 2012's
+        # "Asian Solid State Circuits Conference". Searching the full name
+        # also returns the Asian Control / Optical Fibre / Pulsed Power
+        # conferences, and this phrase is what rules them out.
+        "title_contains": "asian solid state circuits conference",
+        # The conference started in 2005; 2000-2004 do not exist.
+        "first_year": 2005,
+    },
     "vlsi": {
         "name": "VLSI",
         "search_term": "Symposium on VLSI Technology and Circuits",
@@ -182,7 +204,7 @@ class ScraperConfig:
     max_retries: int = 8
     backoff_initial_seconds: float = 3.0
     backoff_max_seconds: float = 120.0
-    rate_limit_seconds: float = 1.5
+    rate_limit_seconds: float = 1.0  # [c] with jitter 4.0: a random 1-5 s gap (Yi, 2026-11-01)
     # The per-document authors endpoint is one call per paper, so it gets a
     # shorter delay than the search API to keep backfills tractable.
     # Requests are serialised by latency (~0.9 s), not by this delay, so
@@ -200,7 +222,8 @@ class ScraperConfig:
     # On a 5xx/429 the floor doubles (up to rate_limit_ceiling_seconds) and
     # decays back after a run of clean responses, so a slow patch throttles
     # the whole scrape instead of hammering through it.
-    rate_limit_jitter: float = 0.3
+    # Extra random wait, up to jitter x the base interval: search 1-5 s, authors 0.45-2.25 s.
+    rate_limit_jitter: float = 4.0  # [c] was 0.3; no fixed pattern (Yi, 2026-11-01)
     rate_limit_ceiling_seconds: float = 30.0
     rate_limit_recovery_successes: int = 6
     # Concurrent workers turn ONE upstream hiccup into N failures. Without

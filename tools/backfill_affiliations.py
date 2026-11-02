@@ -122,12 +122,22 @@ def main() -> int:
     parser.add_argument("--to-year", type=int, default=dt.date.today().year + 1)
     parser.add_argument("--budget", type=int, default=0,
                         help="Stop after roughly this many papers (0 = no limit).")
+    parser.add_argument("--sources", default="",
+                        help="Comma-separated source ids to limit the run to, so a "
+                             "session rebuild can own the other sources' year files "
+                             "at the same time. Default: every source.")
     args = parser.parse_args()
 
     if not acquire_lock():
         return 1
 
     sources = list(CONFERENCES.keys())
+    if args.sources:
+        wanted = {name.strip() for name in args.sources.split(",") if name.strip()}
+        unknown = wanted - set(sources)
+        if unknown:
+            parser.error("unknown source(s): %s" % ", ".join(sorted(unknown)))
+        sources = [cid for cid in sources if cid in wanted]
     scrapers = {cid: Scraper(config=get_config(cid)) for cid in sources}
 
     # Survey first, so the log opens with the real size of the job.

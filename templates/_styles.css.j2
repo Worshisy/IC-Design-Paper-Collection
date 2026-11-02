@@ -41,7 +41,10 @@ a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* Full-width on big screens, gutters on small ones. */
-.container { width: 100%; max-width: 2200px; margin: 0 auto; }
+.container { width: 100%; max-width: 2200px; margin: 0 auto; min-width: 0; }
+/* No overflow-x guard here on purpose: hiding it clips the author-affiliation
+   tooltip against the page edge. Rows are kept inside the viewport by the
+   min-width:0 rule on grid cells instead. */
 
 header { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
 h1 { margin: 0; font-size: clamp(1.15rem, 2.2vw, 1.6rem); }
@@ -86,6 +89,9 @@ h2 { margin: 0 0 0.5rem; font-size: clamp(1rem, 1.6vw, 1.15rem); }
   white-space: nowrap;
 }
 .chip:hover { border-color: var(--accent); text-decoration: none; }
+/* A long session name would otherwise run off the panel: nowrap gives the
+   chip no wrap point, and the flex row gives it no width limit. */
+.chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
 /* ---------- Controls ---------- */
 .controls { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
@@ -179,8 +185,21 @@ body {
 .paper-row:hover { background: var(--bg-sunk); }
 .paper-row.liked { box-shadow: inset 3px 0 0 var(--star); }
 
-.cell-num { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; color: var(--muted); }
+/* A grid item defaults to min-width:auto, so it refuses to shrink below its
+   longest unbreakable word and drags the whole row past the viewport - which
+   clips the title instead of wrapping it. Every cell must be allowed to
+   shrink; the wrapping rules below then do the work. */
+.list-head > *,
+.paper-row > * { min-width: 0; max-width: 100%; }
+
+.cell-num { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.cell-num .cites { display: block; font-size: 0.7rem; }  /* [c] */
+.cell-num .cites::after { content: attr(data-cites) " cit."; }  /* [c] CSS, so the text filter skips it */
 .cell-title { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+/* A rendered formula is an SVG sized in ex units, so it ignores the column
+   and overflows it. 2% of titles carry inline LaTeX. */
+.paper-row svg,
+.paper-row mjx-container { max-width: 100%; height: auto; }
 .cell-abstract { font-size: 0.8rem; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
 .cell-authors { font-size: 0.8rem; line-height: 1.5; overflow-wrap: anywhere; }
 
@@ -247,6 +266,8 @@ body.clamp-on .cell-abstract {
 }
 .note-input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   font-size: 0.72rem;
   font-family: inherit;
   padding: 0.25rem 0.35rem;

@@ -26,7 +26,7 @@ from typing import Dict, List, Set, Tuple
 # Whole sessions that are device research.
 DEVICE_SESSIONS: Dict[int, Set[str]] = {
     2024: {
-        "Christian Enz",                      # compact MOSFET modelling keynote
+        "Plenary 4",                          # Christian Enz, compact MOSFET modelling
         "Advanced Silicon Devices",
         "Advanced Materials for Logic Devices",
         "DTCO & System-Level Modeling",
@@ -67,12 +67,15 @@ DEVICE_PAPERS: Dict[int, List[str]] = {
         "A Novel DTCO-driven 1T1R Bitcell",
         "Highly Controllable Probabilistic Bits Leveraging Instability",
         "Implementation of FitzHugh-Nagumo Neurons",
+        # Found by tools/audit_device_tracks.py inside a circuits session.
+        "Access region resistance in graphene Dirac-Source FETs",
+        "Understanding the impact of the dielectric layer in modulating the TER",
     ],
     2025: [
         "Harnessing Turing Instability",
         "Low-Frequency Noise Characterization of Sub-",
         "A 40nm 48.7F2 Bit 1T2R Resistive Memory Bitcell Array",
-        "A 512 kb 0.069",                      # logic 3T GCRAM
+        "A 512 kb 0.069 μm2 Logic 3T GCRAM",
         "Stacking-Engineered HfO2-ZrO2 Superlattice",
         "Stacked 2D Monolayer",
         "Cryogenic Performance Assessment of FD-SOI Transistors",
@@ -85,6 +88,10 @@ DEVICE_PAPERS: Dict[int, List[str]] = {
         "Towards Ultra Low Thermo-Mechanical Sensitive Capacitors",
         "Highly Sensitive MXene/Si X-Ray Detector",
         "First Demonstration of IGO-IGZO Based In-Sensormemory",
+        # Device modelling papers filed under the "Links" circuits session.
+        "Modeling Advanced Magnetoresistive Memories",
+        "Versatile Compact Verilog-A Model of a STT-MTJ",
+        "Statistical Model for the Calculation of Conductance Variations",
     ],
 }
 
@@ -137,8 +144,9 @@ def drop_device_content(year: int, year_data: dict) -> Tuple[int, int]:
     # Renumber what survives, keeping each session's printed code.
     for position, session in enumerate(kept_sessions, start=1):
         session["session_number"] = position
+        prefix = session.get("session_code") or str(position)
         for index, paper in enumerate(session["papers"], start=1):
-            number = f"{position}.{index}"
+            number = f"{prefix}.{index}"
             paper["session_number"] = position
             paper["session_name"] = session["session_name"]
             paper["paper_number"] = number

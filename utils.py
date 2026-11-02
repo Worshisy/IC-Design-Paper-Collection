@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import requests
+
+LONG_RUN_WORK_SECONDS = (3300, 3900)    # [c] Yi, 2026-11-01: rest after a random 55-65 min of requests
+LONG_RUN_REST_SECONDS = (900, 2700)     # [c] for a random 15-45 min
 from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from config import get_config
@@ -119,8 +122,20 @@ class RateLimiter:
 
         with self._lock:
             interval = max(min_interval, self._floor)
-            interval += random.uniform(0.0, self.jitter * interval)
+            if time.monotonic() - getattr(self, "_seeded_at", -1e9) > 3600:   # [c] fresh seed every hour
+                self._rng, self._seeded_at = random.Random(os.urandom(16)), time.monotonic()
+            interval += self._rng.uniform(0.0, self.jitter * interval)  # [c]
             now = time.monotonic()
+            # [c] Long runs: after 55-65 min of requests, every worker waits a random 15-45 min.
+            if now - self._last_request > 600 or not hasattr(self, "_run_started"):
+                self._run_started = now                      # idle 10 min = a new run
+                self._work_len = self._rng.uniform(*LONG_RUN_WORK_SECONDS)
+            if now - self._run_started > self._work_len:
+                rest = self._rng.uniform(*LONG_RUN_REST_SECONDS)
+                self._last_request = max(self._last_request, now) + rest
+                self._run_started = self._last_request
+                self._work_len = self._rng.uniform(*LONG_RUN_WORK_SECONDS)
+                self._log.warning("About an hour of requests: resting %.0f min (random).", rest / 60)
             start_at = max(now, self._last_request + interval)
             self._last_request = start_at
             breaker = self._pending_cooldown()

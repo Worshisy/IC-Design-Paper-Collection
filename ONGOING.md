@@ -1,79 +1,51 @@
 # ONGOING
 
-Active threads only. Delete a section the moment its thread finishes — use
-`git log` for history. No review badge on this file by convention.
+Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
+thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
-Last updated: 2026-09-20.
+## Thread: session-contents findings   (owner: Claude, updated 2026-09-21)
+Status: 28 findings open from `tools/audit_session_contents.py`: 26 session-code gaps and 2 keynote sessions holding technical papers.
+Done when: each finding is fixed by an override or marked legitimate.
+Next: decide whether to fetch the 8 uncached programmes (ISSCC 2006, CICC 2021-2026, VLSI 2020), then read the gaps.
+Pointers: `scratch/_agent-out-session-contents.md`, docs/06.
 
----
+## Thread: sessions, decisions for Yi   (owner: Claude, updated 2026-10-12)
+Status: every conference-year but ESSCIRC 2005 has real sessions; these need a yes or no.
+Done when: each item is answered and applied.
+- [ ] RFIC 2006 1651130 (Garg): place it in RMO3C, where IEEE's numbering puts it?
+- [ ] CICC 2018 8357100-8357102: these are CICC 2017 papers re-indexed under 2018. `__DROP__` them?
+- [ ] `_print_order` re-ordered 27 reviewed years (552 papers moved within sessions, none changed session); CICC poster sessions now sit mid-year. Is that OK?
+- [ ] A-SSCC calls: 2024 "Plenary" inferred; 2023 10347947 placed in Plenary 2 on the speaker; P1-P4 codes; 2016 Title Case; ESSCIRC 2004 `K`; RFIC 2001 capitals.
+- [ ] A-SSCC 2020: 21 of 62 papers live under SSCL 2020. Cross-list them?
+Pointers: docs/06, docs/07 §2 (2026-10-12 entries).
 
-## Thread: affiliation backfill
+## Thread: sessions, known gaps   (owner: Claude, updated 2026-10-12)
+Status: known, not fixed.
+Done when: each item is fixed or moved to Backlog.
+- [ ] ESSCIRC 2005 needs its programme from outside Xplore (Grenoble, 12-16 Sept 2005); a URL makes it a `data/programmes.tsv` line.
+- [ ] Order inside a session is wrong where IEEE's start page is: A-SSCC 2010/2015/2021, RFIC 2006 (none usable), A-SSCC 2018 (4), 2011 (6123603), RFIC 2002 (1012027). Needs overrides that carry a printed position.
+- [ ] A-SSCC 2024 sessions show in fetch order; plenary and industry codes differ by year.
+- [ ] Only A-SSCC is checked paper by paper; the other conferences' parser-recovered years are not.
+- [ ] Yi reviews the `# [c]` markers in `toc_sessions.py`, `session_overrides.py`, `parser.py`, `scraper.py`, `config.py`, `main.py`.
 
-**Status:** RUNNING since 2026-09-20 17:53. Measured throughput **1.11
-papers/sec**, so ~**15 hours** for all 59,463 papers.
+## Thread: VLSI papers the saved programme drops   (owner: Claude, updated 2026-10-05)
+Status: a re-scrape drops 20 (2024) and 5 (2026) Circuits-looking papers that are absent from the saved programme; nothing changed yet.
+Done when: Yi decides, and they are added by override or programme, not by loosening `drop_unknown`.
+Next: Yi's decision. For 2026, 136 + 5 = 141 matches the count `vlsi_tracks.py` documents.
 
-Author affiliations are not in the search API — each paper needs its own
-request to `/rest/document/<articleNumber>/authors`. Until a year is enriched,
-its author names show without the hover tooltip, which is the intended
-graceful degradation.
+## Thread: GitHub publication   (owner: Claude, updated 2026-09-21)
+Status: not started; the remote has never received this work.
+Done when: scripts and docs are pushed and `git status` shows no dataset files.
+Next: confirm `.gitignore` covers `output/`, `site/`, `cache/`, `userdata/` and `data/session_overrides.tsv` (it holds titles, so it is dataset). Then ask Yi before pushing.
 
-Work is ordered **newest year first across all nine sources at once**, not
-source by source, so whatever is done is the part you would actually read.
+## Thread: cosmetic viewer items   (owner: Claude, updated 2026-09-21)
+Status: open, low priority; evidence in `scratch/_agent-out-htmlreview.md`.
+- [ ] `site/sscl/early_access.html` is orphaned (not linked from its index).
+- [ ] Early Access pages show "Session Year 2026" and a stray leading " · ".
+- [ ] The master `site/index.html` has no dark mode; the active density button fails contrast in dark mode (~2.14:1).
 
-- Progress: `cache/affiliation_progress.json` (percent, last year/source).
-- Log: the run's stdout; each source also caches to
-  `cache/<source>/affiliations.json`, flushed every 50 lookups.
-
-**Safe to stop at any time** — a kill loses at most 50 requests. To resume, or
-to continue it on another evening:
-
-```
-D:\anaconda3\python.exe tools/backfill_affiliations.py
-D:\anaconda3\python.exe tools/backfill_affiliations.py --from-year 2020   # recent only
-D:\anaconda3\python.exe tools/backfill_affiliations.py --budget 2000      # a bounded chunk
-```
-
-Action items:
-
-- [ ] Let it run, or stop it and do it in chunks — either is fine.
-- [ ] Once a decent chunk is done, rebuild and re-sync so the tooltips appear:
-      `update.bat --no-scrape`.
-
-## Thread: marks across machines
-
-**Status:** working on this PC; the other-machine path needs a decision.
-
-On this PC, `python serve.py` saves every like/mark/note straight to
-`userdata/annotations.json`, and `update.bat` syncs that file to iCloud.
-
-Opening the site from the iCloud folder on **another** machine is `file://`,
-where a browser cannot write to disk. Marks made there live in that browser
-until you press **Export marks** and drop the file back into iCloud
-`userdata/`, which the next update run merges.
-
-Action items:
-
-- [ ] Confirm whether you actually mark papers on machines other than this PC.
-      If yes, say so and the options are: run `serve.py` there too (needs
-      Python), or accept the export/import step.
-- [ ] Decide whether `userdata/annotations.json` should also be tracked in
-      git. It is currently ignored, to keep the repo free of merge conflicts
-      over your personal data; tracking it would give a second sync path.
-
-## Thread: review of the 2026-09-20 rework
-
-**Status:** waiting on you.
-
-Every doc written in this pass carries a ⏳ **Unreviewed** badge. The code
-changes are on two commits after the `fcb9f11` baseline, so
-`git diff fcb9f11..HEAD` shows exactly what changed against the original.
-
-Action items:
-
-- [ ] Review the new docs and tell me which to flip to 👀 Glanced or
-      ✅ Confirmed: `README.md`, `AGENTS.md`, `CODEMAP.md`, `docs/01`–`docs/05`.
-- [ ] Sanity-check a few year pages in the browser — particularly that the
-      paper-count drops are all front matter and not real papers
-      (`tools/audit_front_matter.py` prints the longest removed titles).
-- [ ] Confirm what should go to iCloud: `site/` + `userdata/` by default, or
-      also `output/` (add `--sync-data`, ~282 MB more).
+## Backlog
+- Yi reviews the `# [c]` code from the abstract and pacing work: `textclean.py`, `utils.py`, `config.py`, `scraper.py`, `tools/restore_abstracts.py`, `tools/repair_abstract_markup.py`, `html_builder.py` (surveys index).
+- 14 abstracts the 2026-11-01 restore could not fetch (4,717/4,731); re-run `tools/restore_abstracts.py` some day, it picks up only those.
+- Close the Mac SOCKS tunnel (`ssh -D 127.0.0.1:18180`) once Yi agrees; nothing uses it now.
+- Check the search page's default columns and widths on the wide monitor (`COLUMNS` in `search.html.j2`).

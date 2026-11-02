@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Set
 
 from config import ScraperConfig, get_config
 from parser import build_conference_year_from_api
@@ -364,6 +365,10 @@ class Scraper:
             save_json(errors_path, errors)
             return {}
 
+        # What the cache held before this fetch, so a paper that is genuinely
+        # new can be told from one the saved programme deliberately excluded.
+        previous_articles = self.cached_article_numbers(year)
+
         # Keep the raw records: parser changes can then be re-applied offline
         # with reparse_year(), instead of re-fetching everything from IEEE.
         save_json(self._records_cache_path(year), records)
@@ -377,13 +382,43 @@ class Scraper:
         )
 
         year_data = asdict(year_model)
-        save_json(year_path, year_data)
 
-        # Log summary.
-        total_papers = sum(len(s.papers) for s in year_model.sessions)
+        # Raw records carry no session structure, no track split, no overrides
+        # and no affiliations, so a scrape would otherwise throw away every
+        # programme pass this year has had. The year file on disk is still the
+        # old one at this point, which is what the restore reads - doing this
+        # after the write instead silently loses the lot.
+        fetched = {
+            str(paper.get("article_number") or "")
+            for session in year_data.get("sessions", [])
+            for paper in session.get("papers", [])
+        }
+        self._restore_session_layout(
+            year, year_data, keep_articles=fetched - previous_articles
+        )
+        self._apply_track_filter(year, year_data)
+        self._apply_session_overrides(year, year_data)
+        self._restore_full_abstracts(year_data)  # [c]
+        if self.config.is_journal:
+            # The Early Access pseudo-issue belongs in its own collection, not
+            # in the year. Done here so the year file is written exactly once.
+            self._save_early_access(
+                self._extract_early_access_from_year_data(year, year_data),
+                scraped_years={year},
+            )
+        save_json(year_path, year_data)
+        # Records carry no affiliations; re-apply this year's from cache, or a
+        # refresh blanks every one of them.
+        self.enrich_affiliations(start_year=year, end_year=year, cache_only=True)
+
+        # Log summary. Counted from what was written, not from year_model:
+        # the session layout, track split and overrides all change the shape
+        # after parsing, and reporting the raw parse reads like a regression.
+        saved_sessions = year_data.get("sessions", [])
+        total_papers = sum(len(s.get("papers", [])) for s in saved_sessions)
         logger.info(
-            "[%s] Parsed %s sessions, %s papers",
-            year, len(year_model.sessions), total_papers,
+            "[%s] Saved %s sessions, %s papers",
+            year, len(saved_sessions), total_papers,
         )
 
         # Report papers missing key data.
@@ -465,7 +500,98 @@ class Scraper:
             len(early_papers), len(papers), path,
         )
 
-    def reparse_year(self, year: int) -> bool:
+    def _restore_session_layout(
+        self,
+        year: int,
+        year_data: Dict[str, Any],
+        keep_articles: Optional[Set[str]] = None,
+    ) -> bool:
+        """
+        Re-apply the session grouping a previous programme pass worked out.
+
+        Re-parsing rebuilds a year from raw records, which carry no session
+        structure, so without this the table-of-contents work is thrown away -
+        the reason --reparse used to have to run before --toc-sessions.
+        """
+
+        if self.config.is_journal:
+            return False
+        path = self._year_json_path(year)
+        if not path.exists():
+            return False
+        try:
+            previous = load_json(path)
+        except (OSError, ValueError):
+            return False
+        if not isinstance(previous, dict) or len(previous.get("sessions", [])) <= 1:
+            return False
+
+        # A year whose programme covered only one track of a merged conference
+        # was saved with the other track's papers removed outright, so it has no
+        # Unassigned bucket. Re-parsing brings those papers back from the raw
+        # records; drop them again rather than bucketing what was deliberately
+        # excluded. Years that do carry a bucket keep using it.
+        drop_unknown = not any(
+            session.get("session_name") == "Unassigned"
+            for session in previous["sessions"]
+        )
+        # Papers the saved layout cannot know about because they did not exist
+        # when it was made. Never dropped: they are the point of a refresh.
+        keep_articles = keep_articles or set()
+
+        layout: Dict[str, Tuple[int, str, str]] = {}
+        for session in previous["sessions"]:
+            if session.get("session_name") == "Unassigned":
+                continue
+            for paper in session.get("papers", []):
+                key = str(paper.get("article_number") or "")
+                if key:
+                    layout[key] = (
+                        session.get("session_number") or 0,
+                        session.get("session_code") or "",
+                        session.get("session_name") or "",
+                    )
+        if not layout:
+            return False
+
+        papers = [p for s in year_data.get("sessions", []) for p in s.get("papers", [])]
+        grouped: Dict[Tuple[int, str, str], List[Dict[str, Any]]] = {}
+        dropped = 0
+        for paper in papers:
+            article = str(paper.get("article_number") or "")
+            entry = layout.get(article)
+            if entry is None:
+                if drop_unknown and article not in keep_articles:
+                    dropped += 1
+                    continue
+                entry = (10 ** 6, "", "Unassigned")
+            grouped.setdefault(entry, []).append(paper)
+        if dropped:
+            logger.info(
+                "[%s] %d papers absent from the saved programme dropped again", year, dropped
+            )
+
+        ordered: List[Dict[str, Any]] = []
+        for position, key in enumerate(sorted(grouped), start=1):
+            _, code, name = key
+            session = {
+                "session_number": position,
+                "session_code": code,
+                "session_name": name,
+                "papers": grouped[key],
+            }
+            for index, paper in enumerate(session["papers"], start=1):
+                number = f"{position}.{index}"
+                paper["session_number"] = position
+                paper["session_name"] = name
+                paper["paper_number"] = number
+                paper["inferred_paper_number"] = number
+            ordered.append(session)
+
+        year_data["sessions"] = ordered
+        return True
+
+    def reparse_year(self, year: int, keep_articles: Optional[Set[str]] = None) -> bool:
         """
         Rebuild one year's JSON from cached raw records, with no network use.
 
@@ -499,13 +625,46 @@ class Scraper:
             group_by_issue=bool(self.config.is_journal),
         )
         year_data = asdict(year_model)
+        self._restore_session_layout(year, year_data, keep_articles=keep_articles)
+        self._apply_track_filter(year, year_data)
+        self._apply_session_overrides(year, year_data)
+        self._restore_full_abstracts(year_data)  # [c]
+        # A journal year rebuilt from cached records carries its Early Access
+        # pseudo-issue again, so strip it here - the one place that writes a
+        # year file - rather than in each caller.
+        if self.config.is_journal:
+            early = self._extract_early_access_from_year_data(year, year_data)
+            self._save_early_access(early, scraped_years={year})
         save_json(self._year_json_path(year), year_data)
+        # Raw records carry no affiliations, so the rebuild just dropped every
+        # one this year had. reparse_all restores them at the end of its run;
+        # a single-year re-parse has to do it for itself, or they silently
+        # vanish until somebody re-runs the enrichment.
+        self.enrich_affiliations(start_year=year, end_year=year, cache_only=True)
         logger.info(
             "[%s] Re-parsed from cache: %d sessions, %d papers",
             year, len(year_model.sessions),
             sum(len(sess.papers) for sess in year_model.sessions),
         )
         return True
+
+    def cached_article_numbers(self, year: int) -> Set[str]:
+        """Article numbers in this year's raw record cache, or an empty set."""
+
+        path = self._records_cache_path(year)
+        if not path.exists():
+            return set()
+        try:
+            records = load_json(path)
+        except (OSError, ValueError):
+            return set()
+        found: Set[str] = set()
+        for record in records or []:
+            if isinstance(record, dict):
+                number = str(record.get("articleNumber") or "").strip()
+                if number:
+                    found.add(number)
+        return found
 
     def reparse_all(self) -> int:
         """Re-parse every cached year for this source. Returns years rebuilt."""
@@ -520,20 +679,23 @@ class Scraper:
 
         years = sorted(int(p.stem) for p in cache_dir.glob("*.json") if p.stem.isdigit())
         rebuilt = 0
-        all_early: List[Dict[str, Any]] = []
         for year in years:
             if self.reparse_year(year):
                 rebuilt += 1
-                if self.config.is_journal:
-                    year_data = load_json(self._year_json_path(year))
-                    early = self._extract_early_access_from_year_data(year, year_data)
-                    if early:
-                        all_early.extend(early)
-                        save_json(self._year_json_path(year), year_data)
 
+        # reparse_year() has already moved each year's Early Access papers into
+        # the shared collection; all that is left is dropping the ones that
+        # have since been given a real issue.
         if self.config.is_journal and years:
-            self._save_early_access(all_early, scraped_years=set(years))
             self._prune_published_early_access()
+
+        # Raw records carry no affiliations, so a reparse drops every one we
+        # had. Re-apply from cache - no network, and without this they vanish
+        # until somebody remembers to re-run the enrichment.
+        restored = self.enrich_affiliations(cache_only=True)
+        if restored:
+            logger.info("%s: restored affiliations for %d papers from cache.",
+                        self.config.conference_name, restored)
 
         logger.info("%s: re-parsed %d cached years.", self.config.conference_name, rebuilt)
         return rebuilt
@@ -589,6 +751,8 @@ class Scraper:
             except (OSError, ValueError):
                 continue
             for session in year_data.get("sessions", []):
+                if self._is_early_issue_session(session.get("session_name", "")):
+                    continue
                 for paper in session.get("papers", []):
                     published.update(self._paper_keys(paper))
 
@@ -634,6 +798,12 @@ class Scraper:
 
         import toc_sessions as toc
 
+        # A journal has issues, not sessions. SSCL from 2020 is one volume
+        # group a year, which _lacks_sessions would otherwise read as a
+        # collapsed conference and hand to the programme pass.  # [c]
+        if self.config.is_journal:
+            return False
+
         records_path = self._records_cache_path(year)
         year_path = self._year_json_path(year)
         if not records_path.exists() or not year_path.exists():
@@ -668,6 +838,7 @@ class Scraper:
                 applied, detail = toc.sessions_from_major_topics(year_data, topics)
                 if applied:
                     self._apply_track_filter(year, year_data)
+                    self._apply_session_overrides(year, year_data)
                     save_json(year_path, year_data)
                     logger.info("[%s %s] sessions from %s", self.config.conference_id, year, detail)
                     return True
@@ -679,6 +850,7 @@ class Scraper:
         applied = False
         detail = "no programme document"
         tried = 0
+        parsed = []
         for candidate in toc.find_toc_records(records):
             tried += 1
             article = candidate.get("articleNumber")
@@ -698,24 +870,99 @@ class Scraper:
             if not programme.session_names:
                 detail = f"{candidate.get('articleTitle')!r} has no recognisable sessions"
                 continue
+            parsed.append((programme, raw_text, candidate))
 
-            # For VLSI 2022+ the two tracks share one publication, so papers
-            # missing from the Circuits programme are Technology papers and
-            # are dropped rather than bucketed as unassigned.
-            merged_tracks = bool(self.config.circuits_only) and "technology and circuits" in (
-                (records[0].get("publicationTitle") or "").lower() if records else ""
+        # The conference's own website, for years IEEE indexes no programme for.
+        # It competes with the Xplore candidates on the same terms.
+        web_url = toc.web_programme_url(self.config.conference_id, year)
+        if web_url:
+            raw_text = toc.web_programme_text(
+                web_url, self._toc_pdf_path(year).parent, year
             )
-            applied, detail = toc.assign_sessions(
-                year_data, programme, raw_text=raw_text, drop_unmatched=merged_tracks
+            if raw_text:
+                programme = toc.parse_programme(raw_text)
+                if programme.session_names:
+                    parsed.append((programme, raw_text, {"articleTitle": f"web: {web_url}"}))
+
+        # For VLSI 2022+ the two tracks share one publication, so papers
+        # missing from the Circuits programme are Technology papers and
+        # are dropped rather than bucketed as unassigned.
+        merged_tracks = bool(self.config.circuits_only) and "technology and circuits" in (
+            (records[0].get("publicationTitle") or "").lower() if records else ""
+        )
+
+        def grouping_score(data: Dict[str, Any]) -> Tuple[int, int]:
+            """Papers actually placed, then how many named sessions hold them."""
+
+            sessions = data.get("sessions", [])
+            total = sum(len(session.get("papers", [])) for session in sessions)
+            real = [
+                session for session in sessions
+                if session.get("session_name") not in ("Unassigned", "General")
+            ]
+            # Ignore any session that holds more than 40% of the year: that is
+            # a bucket, not a session, and counting its papers as "placed"
+            # makes a broken grouping look like the best one available.
+            credible = [
+                session for session in real
+                if not total or len(session.get("papers", [])) <= 0.4 * total
+            ]
+            placed = sum(len(session["papers"]) for session in credible)
+            return placed, len(credible)
+
+        # What the year already has. A programme is only worth applying if it
+        # beats this: ISSCC derives its sessions from the records themselves,
+        # and re-deriving 2002 from the printed programme turned 26 sessions
+        # into 16. Re-running a healthy year must never cost it structure.
+        incumbent = grouping_score(year_data)
+
+        # A year often ships several front-matter documents - a two-page
+        # "Session List" beside a thirty-page "Table of Contents". Score them
+        # by the grouping they actually produce rather than by how much text
+        # they parse: a document with more session headings can still match
+        # fewer papers, and picking it by size alone regressed RFIC 2008 and
+        # 2014. Each trial runs on its own copy, so a losing candidate cannot
+        # leave a partial grouping behind.
+        best = None
+        for programme, raw_text, candidate in parsed:
+            trial = copy.deepcopy(year_data)
+            applied, trial_detail = toc.assign_sessions(
+                trial, programme, raw_text=raw_text, drop_unmatched=merged_tracks
             )
-            if applied:
-                break
+            if not applied:
+                detail = trial_detail
+                continue
+            sessions = trial.get("sessions", [])
+            assigned = sum(
+                len(session["papers"])
+                for session in sessions
+                if session.get("session_name") != "Unassigned"
+            )
+            named = sum(1 for s in sessions if s.get("session_name") != "Unassigned")
+            score = (assigned, named)
+            if best is None or score > best[0]:
+                best = (score, trial, trial_detail, candidate)
+
+        if best is not None and best[0] <= incumbent:
+            logger.info(
+                "[%s %s] keeping the existing grouping: programme scores %s, current %s",
+                self.config.conference_id, year, best[0], incumbent,
+            )
+            best = None
+            detail = "existing grouping is better; left as-is"
+
+        if best is not None:
+            _, chosen, detail, candidate = best
+            year_data["sessions"] = chosen["sessions"]
+            applied = True
+            detail = f"{detail} (from {candidate.get('articleTitle')!r})"
 
         if not applied:
             logger.info("[%s %s] programme not applied: %s", self.config.conference_id, year, detail)
             return False
 
         self._apply_track_filter(year, year_data)
+        self._apply_session_overrides(year, year_data)
         save_json(year_path, year_data)
         logger.info(
             "[%s %s] sessions from programme: %s",
@@ -723,19 +970,80 @@ class Scraper:
         )
         return True
 
+    def _apply_session_overrides(self, year: int, year_data: Dict[str, Any]) -> None:
+        """Tidy the session structure once it is final."""
+
+        import session_overrides
+        import toc_sessions as toc
+
+        # A grouping where one session holds most of the year is not structure,
+        # it is noise wearing a session's name. CICC files its session-overview
+        # records in a block at the END of the search results rather than
+        # interleaved with the papers, so position-based grouping put 104 of
+        # 2015's 123 papers under "Low power analog" and 107 of 2018's 109
+        # under one heading. A single honest "General" session is better than a
+        # page that claims a structure the data does not support; overrides
+        # still run afterwards and can place papers properly.
+        if not self.config.is_journal:
+            sessions = year_data.get("sessions", [])
+            real = [
+                session for session in sessions
+                if session.get("session_name") not in ("Unassigned", "General")
+            ]
+            total = sum(len(session.get("papers", [])) for session in sessions)
+            if real and total >= 20:
+                biggest = max(len(session.get("papers", [])) for session in real)
+                if biggest > 0.6 * total:
+                    logger.info(
+                        "[%s %s] one session holds %d of %d papers; keeping a single"
+                        " General session instead",
+                        self.config.conference_id, year, biggest, total,
+                    )
+                    papers = [p for s in sessions for p in s.get("papers", [])]
+                    for index, paper in enumerate(papers, start=1):
+                        paper["session_number"] = 1
+                        paper["session_name"] = "General"
+                        paper["paper_number"] = f"1.{index}"
+                        paper["inferred_paper_number"] = f"1.{index}"
+                    year_data["sessions"] = [{
+                        "session_number": 1,
+                        "session_code": "1",
+                        "session_name": "General",
+                        "papers": papers,
+                    }]
+
+        # The chairs' session-introduction records look like papers and inflate
+        # the session they sit in; remove them before the overrides run, so an
+        # override never has to name one.
+        removed = toc.drop_session_overview_records(year_data)
+        if removed:
+            logger.info(
+                "[%s %s] %d session-overview record(s) removed",
+                self.config.conference_id, year, removed,
+            )
+        session_overrides.apply_overrides(self.config.conference_id, year, year_data)
+
     def _apply_track_filter(self, year: int, year_data: Dict[str, Any]) -> None:
         """Drop the devices half of a merged conference, where we know it."""
 
-        if self.config.conference_id != "esscirc":
-            return
-        import esserc_tracks
+        if self.config.conference_id == "esscirc":
+            import esserc_tracks
 
-        sessions, papers = esserc_tracks.drop_device_content(year, year_data)
-        if sessions or papers:
-            logger.info(
-                "[esscirc %s] dropped %d device session(s) and %d device paper(s)",
-                year, sessions, papers,
-            )
+            sessions, papers = esserc_tracks.drop_device_content(year, year_data)
+            if sessions or papers:
+                logger.info(
+                    "[esscirc %s] dropped %d device session(s) and %d device paper(s)",
+                    year, sessions, papers,
+                )
+        elif self.config.conference_id == "vlsi":
+            import vlsi_tracks
+
+            sessions, papers = vlsi_tracks.drop_technology_papers(year, year_data)
+            if sessions or papers:
+                logger.info(
+                    "[vlsi %s] dropped %d Technology paper(s), %d empty session(s)",
+                    year, papers, sessions,
+                )
 
     def enrich_sessions_all(
         self,
@@ -770,6 +1078,35 @@ class Scraper:
     # Author affiliations (one extra request per paper)
     # ------------------------------------------------------------------
 
+    def _full_abstract_cache_path(self) -> Path:  # [c]
+        return self.config.cache_dir / "abstracts_full.json"
+
+    def _restore_full_abstracts(self, year_data: Dict[str, Any]) -> int:  # [c]
+        """
+        Put back the full abstracts tools/restore_abstracts.py fetched.
+
+        The search API cuts abstracts at about 400 characters (91% of stored
+        abstracts, measured 2026-10-27) and every scrape or re-parse rebuilds a
+        year from those records, so the full text is re-applied before the write.
+        """
+
+        cache = getattr(self, "_full_abstracts", None)
+        if cache is None:
+            path = self._full_abstract_cache_path()
+            try:
+                cache = load_json(path) if path.exists() else {}
+            except (OSError, ValueError):
+                cache = {}
+            self._full_abstracts = cache
+        restored = 0
+        for session in year_data.get("sessions", []):
+            for paper in session.get("papers", []):
+                full = cache.get(str(paper.get("article_number") or ""))
+                if full and len(full) > len(paper.get("abstract") or ""):
+                    paper["abstract"] = full
+                    restored += 1
+        return restored
+
     def _affiliation_cache_path(self) -> Path:
         return self.config.cache_dir / "affiliations.json"
 
@@ -800,6 +1137,7 @@ class Scraper:
         start_year: Optional[int] = None,
         end_year: Optional[int] = None,
         max_papers: Optional[int] = None,
+        cache_only: bool = False,
     ) -> int:
         """
         Fill in per-author affiliations for stored years, newest year first.
@@ -847,7 +1185,7 @@ class Scraper:
             if max_papers is not None:
                 pending = pending[: max(0, max_papers - updated)]
 
-            to_fetch = [
+            to_fetch = [] if cache_only else [
                 p["article_number"] for p in pending
                 if p["article_number"] not in cache
             ]
@@ -921,8 +1259,6 @@ class Scraper:
             logger.error("No %s proceedings discovered; aborting.", self.config.conference_name)
             return
 
-        all_early_access: List[Dict[str, Any]] = []
-
         failed_years: List[int] = []
         for year in sorted(available):
             pub_number = available[year]
@@ -936,25 +1272,10 @@ class Scraper:
                 failed_years.append(year)
                 continue
 
-            # Journal post-processing: keep Early Access separate from regular
-            # year/issues.
-            if self.config.is_journal and year_data:
-                early = self._extract_early_access_from_year_data(year, year_data)
-                if early:
-                    all_early_access.extend(early)
-                    save_json(self._year_json_path(year), year_data)
-                    logger.info(
-                        "[%s] Moved %d Early Access papers to separate collection",
-                        year, len(early),
-                    )
-
         if self.config.is_journal:
-            # Only merge over years this run actually managed to fetch.
-            self._save_early_access(
-                all_early_access,
-                scraped_years=set(available) - set(failed_years),
-            )
-            # A paper leaves Early Access when IEEE assigns it an issue.
+            # scrape_year has already moved each year's Early Access papers
+            # into the shared collection; all that is left is dropping the ones
+            # IEEE has since given a real issue.
             self._prune_published_early_access()
 
         if failed_years:

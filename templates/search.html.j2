@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Search all sources</title>
+    <style>
+{% include "_styles.css.j2" %}
+
+/* ---------- Search page ---------- */
+.search-grid { display: grid; grid-template-columns: 16rem 1fr; gap: 1rem; align-items: start; }
+/* Sticky, but never taller than the window: with every panel open the last
+   one used to sit below the fold with no way to reach it, because the page
+   scroll moves the results, not the pinned sidebar. */
+.facets { position: sticky; top: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;
+          max-height: calc(100vh - 1rem); overflow-y: auto; padding-right: 0.25rem; }
+.facet { padding: 0.7rem 0.8rem; }
+.facet h3 { margin: 0 0 0.45rem; font-size: 0.72rem; text-transform: uppercase;
+            letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.facet label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem;
+               padding: 0.12rem 0; cursor: pointer; }
+.facet label span.count { margin-left: auto; color: var(--muted); font-size: 0.72rem; }
+.year-row { display: flex; align-items: center; gap: 0.4rem; }
+.year-row input { width: 5rem; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; }
+.toolbar .grow { flex: 1 1 18rem; }
+.result-count { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+mark { background: var(--star); color: inherit; border-radius: 0.15rem; padding: 0 0.1em; }
+.src-tag { display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em;
+           padding: 0.05rem 0.35rem; border-radius: 0.3rem; background: var(--bg-sunk);
+           border: 1px solid var(--border); color: var(--muted); }
+.cell-meta { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+.loading { padding: 2rem; text-align: center; color: var(--muted); }
+@media (max-width: 900px) {
+  .search-grid { grid-template-columns: 1fr; }
+  .facets { position: static; max-height: none; overflow-y: visible; }
+}
+
+/* ---------- Result table ---------- */
+/* Columns are explicit pixel widths so a drag has an exact meaning; when they
+   add up to more than the window the table scrolls sideways rather than
+   squeezing a title into a two-character column. */
+.table-wrap { overflow-x: auto; }
+/* Let the results column shrink to the window, so a wide table scrolls in
+   its own box instead of pushing the whole page (and the toolbar) sideways. [c] */
+.search-grid > main { min-width: 0; }
+.search-head,
+body.search-page .paper-row { grid-template-columns: var(--search-cols); }
+.search-head {
+  display: grid;
+  gap: 0.75rem;
+  align-items: end;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.search-head > div { position: relative; min-width: 0; }
+.col-grip {
+  position: absolute;
+  top: -0.45rem;
+  bottom: -0.5rem;
+  right: -0.55rem;
+  width: 0.75rem;
+  cursor: col-resize;
+  touch-action: none;
+}
+.col-grip::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 50%;
+  width: 1px;
+  background: var(--border);
+}
+.col-grip:hover::after,
+.col-grip.dragging::after { width: 2px; background: var(--accent); }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
+
+.col-menu-wrap { position: relative; }
+.col-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 40;
+  width: 15rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.col-menu label { display: flex; align-items: center; gap: 0.4rem;
+                  font-size: 0.8rem; padding: 0.15rem 0; cursor: pointer; }
+.col-menu hr { border: 0; border-top: 1px solid var(--border); margin: 0.45rem 0; }
+
+.cell-source { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+.cell-affil { font-size: 0.78rem; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+body.clamp-abs .cell-abstract {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+
+/* The shared stylesheet collapses the row grid on narrow screens; here the
+   reader's own column choice wins at every width. */
+@media (max-width: 900px) {
+  body.search-page .cell-abstract { grid-column: auto; margin-top: 0; }
+}
+@media (max-width: 640px) {
+  body.search-page .paper-row { gap: 0.75rem; padding: 0.5rem 0.6rem; }
+  body.search-page .cell-authors::before,
+  body.search-page .cell-abstract::before { content: none; }
+}
+    </style>
+  </head>
+  <body class="search-page">
+    <div class="container">
+      <header>
+        <div class="topbar">
+          <a href="index.html">← All sources</a>
+          <span class="muted">Search {{ "{:,}".format(total_papers) }} papers{% if citations_asof %} · citations as of {{ citations_asof }}{% endif %}</span>{# [c] #}
+          <span class="spacer"></span>
+          <button type="button" class="pill-btn" id="theme-toggle">Dark mode</button>
+        </div>
+        <h1>Search all sources</h1>
+      </header>
+
+      <div class="search-grid">
+        <aside class="facets">
+          <div class="panel facet">
+            <h3>Search in</h3>
+            <label><input type="radio" name="scope" value="title" checked /> Title only</label>
+            <label><input type="radio" name="scope" value="title_abstract" /> Title + abstract</label>
+            <label><input type="radio" name="scope" value="all" /> Everything</label>
+            <label><input type="radio" name="scope" value="authors" /> Authors only</label>
+            <label><input type="radio" name="scope" value="affiliation" /> Affiliation only</label>
+            <div class="muted" id="abstract-note" style="font-size:0.7rem;margin-top:0.35rem"></div>
+          </div>
+
+          <div class="panel facet">
+            <h3>Query syntax</h3>
+            <div class="muted" style="font-size:0.72rem;line-height:1.6">
+              <code>sar adc</code> — all words<br />
+              <code>"phase locked"</code> — exact phrase<br />
+              <code>adc*</code> — starts with<br />
+              <code>*sigma*</code> — contains<br />
+              <code>sar?adc</code> — one character<br />
+              <code>/^a \d+ bit/</code> — regular expression<br />
+              <code>-"noise shaping"</code> — exclude (quotes required)<br />
+              Hyphens, slashes and other symbols are ignored on both sides,
+              and so is case unless <em>Case sensitive</em> is ticked.
+            </div>
+          </div>
+
+          <div class="panel facet">
+            <h3>Source</h3>
+            <label><input type="checkbox" id="src-all" checked /> <strong>All sources</strong></label>
+            {% for s in sources %}
+            <label><input type="checkbox" class="src" value="{{ s.id }}" checked />
+              {{ s.name }}<span class="count" data-count="{{ s.id }}"></span></label>
+            {% endfor %}
+          </div>
+
+          <div class="panel facet">
+            <h3>Year</h3>
+            <div class="year-row">
+              <input class="text-input" type="number" id="year-from" placeholder="{{ min_year }}"
+                     min="{{ min_year }}" max="{{ max_year }}" />
+              <span class="muted">to</span>
+              <input class="text-input" type="number" id="year-to" placeholder="{{ max_year }}"
+                     min="{{ min_year }}" max="{{ max_year }}" />
+            </div>
+          </div>
+
+          <div class="panel facet">
+            <h3>Show</h3>
+            <label><input type="checkbox" id="liked-only" /> Liked only</label>
+            <label><input type="checkbox" id="marked-only" /> Marked or noted</label>
+            <label><input type="checkbox" id="exact-phrase" /> Exact phrase</label>
+            <label><input type="checkbox" id="case-sensitive" /> Case sensitive</label>
+          </div>
+
+        </aside>
+
+        <main>
+          <div class="panel controls toolbar">
+            <div class="control-group grow">
+              <input id="q" class="search-input" type="search" autofocus
+                     placeholder="sar adc · &quot;phase locked&quot; · adc* · *sigma* · /^a \d+ bit/" />
+            </div>
+            <div class="control-group">
+              <span>Sort</span>
+              <select class="text-input" id="sort">
+                <option value="relevance">Relevance</option>
+                <option value="year">Year</option>
+                <option value="cites">Citations</option>{# [c] #}
+                <option value="title">Title</option>
+                <option value="source">Source</option>
+                <option value="author">First author</option>
+                <option value="affil">Affiliation</option>
+              </select>
+              <button type="button" class="pill-btn" id="sort-dir" title="Toggle ascending/descending">↓ Desc</button>
+            </div>
+            <div class="control-group col-menu-wrap">
+              <button type="button" class="pill-btn" id="col-menu-btn"
+                      aria-expanded="false">Columns ▾</button>
+              <div class="col-menu hidden" id="col-menu">
+                <div id="col-toggles"></div>
+                <hr />
+                <label><input type="checkbox" id="clamp-abs" checked />
+                  Clamp abstract to 6 lines</label>
+                <div class="muted" style="font-size:0.7rem;margin-top:0.4rem">
+                  Drag a column edge in the header to resize.
+                </div>
+                <button type="button" class="pill-btn" id="col-reset"
+                        style="margin-top:0.45rem">Reset columns</button>
+              </div>
+            </div>
+            <span class="result-count" id="count"></span>
+          </div>
+
+          <div class="table-wrap">
+            <div class="search-head" id="head"></div>
+            <div class="paper-list" id="results"></div>
+          </div>
+          <div class="loading" id="loading">Loading index…</div>
+          <div class="no-results hidden" id="no-results">No papers match.</div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      window.MathJax = {
+        tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]] },
+        options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre"] },
+        startup: {
+          /* MathJax sweeps the page once, when it becomes ready - which here
+             is before the 18 MB index has been parsed and the first rows
+             exist. Those rows would keep their raw $...$ source forever,
+             because nothing re-renders them afterwards. */
+          pageReady: function () {
+            /* No defaultPageReady(): its sweep of the whole document would be
+               a second pass over the only container that holds any maths, and
+               the rows do not exist yet when it would run. Typeset what is on
+               screen instead - which matters when MathJax becomes ready after
+               the first rows are already painted. */
+            if (window.searchTypesetMath) window.searchTypesetMath();
+            return Promise.resolve();
+          }
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="vendor/mathjax/tex-svg-full.js"
+            onerror="var s=document.createElement('script');s.async=true;s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg-full.js';document.head.appendChild(s);"></script>
+    <script src="annotations.js" onerror="void 0"></script>
+    <script src="search-index.js" onerror="void 0"></script>
+    <script>
+{% include "_scripts.js.j2" %}
+    </script>
+    <script>
+      const SOURCE_NAMES = {{ sources | map(attribute='id') | list | tojson }};
+      const SOURCE_LABELS = {{ sources | map(attribute='name') | list | tojson }};
+      const MAX_RENDER = 300;
+
+      (function () {
+        const el = id => document.getElementById(id);
+        const results = el("results"), loading = el("loading"), noResults = el("no-results");
+        const q = el("q"), sortSel = el("sort"), sortDir = el("sort-dir"), countEl = el("count");
+        let DATA = [], ABSTRACTS = {}, AFFILS = {}, descending = true;
+
+        /* Columns the reader can show, hide and drag. The layout is stored per
+           browser, not in the URL: a shared link should carry the query, not
+           somebody else's column widths. */
+        const COLUMNS = [
+          { key: "num",      label: "Year / no.",      w: 74,  on: true },
+          { key: "cites",    label: "Cited",           w: 56,  on: true },  // [c]
+          { key: "title",    label: "Title",           w: 380, on: true },
+          { key: "source",   label: "Source, session", w: 170, on: true },
+          { key: "abstract", label: "Abstract",        w: 340, on: false },
+          { key: "authors",  label: "Authors",         w: 260, on: true },
+          { key: "affil",    label: "Affiliation",     w: 220, on: false },
+          { key: "notes",    label: "Notes",           w: 200, on: true },
+        ];
+        const COL_KEY = "paperlog.search.columns";
+        const colState = {};
+        COLUMNS.forEach(c => { colState[c.key] = { w: c.w, on: c.on }; });
+        try {
+          const saved = JSON.parse(localStorage.getItem(COL_KEY) || "null") || {};
+          Object.keys(saved).forEach(k => {
+            if (!colState[k]) return;
+            if (typeof saved[k].w === "number") colState[k].w = saved[k].w;
+            if (typeof saved[k].on === "boolean") colState[k].on = saved[k].on;
+          });
+        } catch (e) {}
+        function saveColumns() {
+          try { localStorage.setItem(COL_KEY, JSON.stringify(colState)); } catch (e) {}
+        }
+        const showing = key => colState[key].on;
+        const shownColumns = () => COLUMNS.filter(c => colState[c.key].on);
+        /* A shard entry is { u: [affiliation, ...], m: [index per author] }:
+           the column shows the unique list, the tooltip follows m back to the
+           author being hovered. */
+        const affilEntry = row => (AFFILS[row.s] || {})[row.i] || null;
+        const affilOf = row => {
+          const entry = affilEntry(row);
+          return entry ? entry.u.join("; ") : "";
+        };
+        const abstractOf = row => (ABSTRACTS[row.s] || {})[row.i] || "";
+
+        /* Fit the window: the narrow columns keep their pixel width, the
+           text columns share what is left in proportion to their set widths,
+           and the table scrolls inside its box only once those reach 60%. */  // [c]
+        const FIXED_COLS = { num: true, cites: true, notes: true };  // [c]
+        function applyWidths() {  // [c]
+          document.querySelector(".table-wrap").style.setProperty(
+            "--search-cols", shownColumns().map(c => {
+              const w = colState[c.key].w;
+              return FIXED_COLS[c.key] ? w + "px" : "minmax(" + Math.round(w * 0.6) + "px, " + w + "fr)";
+            }).join(" "));
+        }
+
+        function applyColumns() {
+          applyWidths();
+          const head = el("head");
+          head.textContent = "";
+          shownColumns().forEach(c => {
+            const cell = document.createElement("div");
+            cell.textContent = c.label;
+            const grip = document.createElement("span");
+            grip.className = "col-grip";
+            grip.dataset.col = c.key;
+            grip.title = "Drag to resize";
+            cell.appendChild(grip);
+            head.appendChild(cell);
+          });
+        }
+
+        const labelOf = {};
+        SOURCE_NAMES.forEach((id, i) => { labelOf[id] = SOURCE_LABELS[i]; });
+
+        function start() {
+          DATA = window.SEARCH_INDEX || [];
+          if (!DATA.length) {
+            loading.textContent = "search-index.js did not load - is it next to this page?";
+            return;
+          }
+          loading.classList.add("hidden");
+          readUrl();
+          SOURCE_NAMES.forEach(id => {
+            const n = DATA.reduce((acc, r) => acc + (r.s === id ? 1 : 0), 0);
+            const tag = document.querySelector(`[data-count="${id}"]`);
+            if (tag) tag.textContent = n.toLocaleString();
+          });
+          ensureData().then(() => {
+            run();
+            setTimeout(() => {
+              wantAffiliations = true;
+              ensureData().then(run);
+            }, 300);
+          });
+        }
+
+        function neededSources() {
+          return Array.from(document.querySelectorAll(".src:checked")).map(c => c.value);
+        }
+
+        /* Abstracts are 24 MB and affiliations 10 MB on top of the index, so
+           each ships one file per source and arrives only when a scope, a
+           column or a sort actually asks for it. */
+        function loadShards(dir, store, globalName) {
+          const missing = neededSources().filter(id => !store[id]);
+          if (!missing.length) return Promise.resolve();
+          return Promise.all(missing.map(id => new Promise(resolve => {
+            const tag = document.createElement("script");
+            tag.src = dir + "/" + id + ".js";
+            tag.onload = () => {
+              store[id] = (window[globalName] || {})[id] || {};
+              resolve();
+            };
+            tag.onerror = () => { store[id] = {}; resolve(); };
+            document.head.appendChild(tag);
+          })));
+        }
+
+        /* Every author name carries its affiliation as a tooltip, so the
+           shards are wanted on any page - just not badly enough to hold up the
+           first paint, which is why start() turns this on afterwards. */
+        let wantAffiliations = false;
+
+        function ensureData() {
+          const scope = document.querySelector("input[name=scope]:checked").value;
+          const jobs = [];
+          if (scope === "title_abstract" || scope === "all" || showing("abstract")) {
+            jobs.push(loadShards("abstracts", ABSTRACTS, "SEARCH_ABSTRACTS"));
+          }
+          if (wantAffiliations || scope === "affiliation" || scope === "all"
+              || showing("affil") || sortSel.value === "affil") {
+            jobs.push(loadShards("affiliations", AFFILS, "SEARCH_AFFILS"));
+          }
+          if (!jobs.length) return Promise.resolve();
+          el("abstract-note").textContent = "Loading\u2026";
+          return Promise.all(jobs).then(() => {
+            el("abstract-note").textContent = "Loaded.";
+          });
+        }
+
+        /* Punctuation must not decide a match: a reader typing "phase locked"
+           expects the papers titled "phase-locked", and "delta sigma" the ones
+           written "delta-sigma" or "ΔΣ"-spelled-out. Both sides are flattened
+           to words separated by single spaces before comparing. */
+        let caseSensitive = false;
+
+        function flat(text) {
+          const body = caseSensitive ? (text || "") : (text || "").toLowerCase();
+          return (" " + body.replace(/[^A-Za-z0-9]+/g, " ").trim() + " ");
+        }
+
+        /* The query keeps * and ? so a wildcard survives flattening; every
+           other symbol is dropped exactly as it is in the text being searched,
+           so "delta-sigma", "delta sigma" and "delta_sigma" are one query. */
+        function flatQuery(text) {
+          const body = caseSensitive ? (text || "") : (text || "").toLowerCase();
+          return body.replace(/[^A-Za-z0-9*?]+/g, " ").trim();
+        }
+
+        /* "adc*" matches adcs; "*adc*" matches anywhere inside a word;
+           "sar?adc" matches one character. Anchored to word edges unless the
+           pattern itself opens or closes with a wildcard. */
+        function wildcardToRegExp(term) {
+          const body = term.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                           .replace(/\*/g, "[A-Za-z0-9 ]*")
+                           .replace(/\?/g, "[A-Za-z0-9 ]");
+          const open = term.startsWith("*") ? "" : "(?:^| )";
+          const close = term.endsWith("*") ? "" : "(?:$| )";
+          return new RegExp(open + body + close);
+        }
+
+        function parseQuery(raw) {
+          /* Typographic quotes count: macOS substitutes them as you type, and
+             a phrase in curly quotes used to fall through to loose words. */
+          const text = (raw || "").trim().replace(/[\u201C\u201D\u201E\u2033\u00AB\u00BB]/g, '"');
+
+          /* /regex/ - passed through to the engine, matched against the same
+             flattened text, so it needs no punctuation of its own. */
+          if (text.length > 2 && text.startsWith("/") && text.lastIndexOf("/") > 0) {
+            const close = text.lastIndexOf("/");
+            try {
+              return {
+                phrases: [], words: [], bad: false,
+                regex: new RegExp(text.slice(1, close),
+                                  text.slice(close + 1) || (caseSensitive ? "" : "i")),
+              };
+            } catch (err) {
+              return { phrases: [], words: [], bad: true, error: err.message };
+            }
+          }
+
+          /* -"phrase" excludes. Only the quoted form, so PLL-less and -40
+             mean what they always did. */  // [c]
+          const excludes = [];  // [c]
+          const kept = text.replace(/(^|\s)[-–—−]"([^"]+)"/g, (_, lead, p) => {  // [c]
+            const term = flatQuery(p);
+            if (term) excludes.push(term);
+            return lead + " ";
+          });
+
+          const phrases = [];
+          const rest = kept.replace(/"([^"]+)"/g, (_, p) => {  // [c] was text
+            phrases.push(flatQuery(p));
+            return " ";
+          });
+          const words = [], globs = [], globsRaw = [];
+          rest.split(/\s+/).filter(Boolean).forEach(token => {
+            const flat = flatQuery(token);
+            if (!flat) return;
+            if (token.indexOf("*") !== -1 || token.indexOf("?") !== -1) {
+              const cleaned = flat.replace(/\*{2,}/g, "*");
+              if (cleaned.replace(/[*?\s]/g, "").length) {
+                globs.push(wildcardToRegExp(cleaned));
+                globsRaw.push(cleaned);
+              }
+            } else if (flat.indexOf(" ") !== -1) {
+              phrases.push(flat);   // hyphen, slash, dot: one term, not several
+            } else {
+              words.push(flat);
+            }
+          });
+          return { phrases, words, globs, globsRaw, excludes, bad: false };  // [c]
+        }
+
+        /* A term has to line up with a word edge: "adc" finds "ADCs" (starts
+           one) and "TIADC" (finishes one), but not the "adc" buried in
+           "broadcast" or "readcycle". Use *adc* to search inside words. */
+        function termHit(hay, term) {
+          return hay.indexOf(" " + term) !== -1 || hay.indexOf(term + " ") !== -1;
+        }
+
+        function haystack(row, scope) {
+          if (scope === "authors") return flat(row.a);
+          if (scope === "affiliation") return flat(affilOf(row));
+          let text = row.t || "";
+          if (scope === "title_abstract" || scope === "all") {
+            text += " " + abstractOf(row);
+          }
+          if (scope === "all") text += " " + (row.a || "") + " " + affilOf(row);
+          return flat(text);
+        }
+
+        function score(row, parsed, scope) {
+          const title = flat(row.t);
+          let s = 0;
+          parsed.words.forEach(w => { if (title.includes(w)) s += title.startsWith(w) ? 3 : 2; });
+          parsed.phrases.forEach(p => { if (title.includes(p)) s += 5; });
+          return s;
+        }
+
+        function run() {
+          caseSensitive = el("case-sensitive").checked;
+          const parsed = parseQuery(q.value);
+          const scope = document.querySelector("input[name=scope]:checked").value;
+          const exact = el("exact-phrase").checked;
+          const srcs = new Set(neededSources());
+          const from = parseInt(el("year-from").value, 10) || -Infinity;
+          const to = parseInt(el("year-to").value, 10) || Infinity;
+          const likedOnly = el("liked-only").checked, markedOnly = el("marked-only").checked;
+          const terms = exact && q.value.trim()
+            ? { phrases: [flat(q.value).trim()], words: [], globs: [], bad: false }
+            : parsed;
+          terms.hl = buildHighlights(terms);
+
+          let hits = DATA.filter(row => {
+            if (!srcs.has(row.s)) return false;
+            if (row.y < from || row.y > to) return false;
+            if (likedOnly || markedOnly) {
+              const ann = window.Annotations.get(row.i) || {};
+              if (likedOnly && !ann.liked) return false;
+              if (markedOnly && !ann.marked && !(ann.note || "").trim()) return false;
+            }
+            const hasQuery = terms.regex || terms.words.length
+                          || terms.phrases.length || (terms.globs || []).length
+                          || (terms.excludes || []).length;  // [c]
+            if (!hasQuery) return true;
+            const hay = haystack(row, scope);
+            if (terms.regex) return terms.regex.test(hay.trim());
+            return (terms.excludes || []).every(e => !termHit(hay, e))  // [c]
+                && terms.words.every(w => termHit(hay, w))
+                && terms.phrases.every(p => termHit(hay, p))
+                && (terms.globs || []).every(g => g.test(hay));
+          });
+
+          const dir = descending ? -1 : 1;
+          const by = sortSel.value;
+          hits.sort((x, y) => {
+            let a, b;
+            if (by === "year") { a = x.y; b = y.y; }
+            else if (by === "cites") { a = x.k == null ? -1 : x.k; b = y.k == null ? -1 : y.k; }  // [c]
+            else if (by === "title") { a = (x.t || "").toLowerCase(); b = (y.t || "").toLowerCase(); }
+            else if (by === "source") { a = x.s; b = y.s; }
+            else if (by === "author") { a = (x.a || "").toLowerCase(); b = (y.a || "").toLowerCase(); }
+            else if (by === "affil") { a = affilOf(x).toLowerCase(); b = affilOf(y).toLowerCase(); }
+            else { a = score(x, terms, scope); b = score(y, terms, scope); }
+            if (a < b) return -dir;
+            if (a > b) return dir;
+            return (y.y || 0) - (x.y || 0);
+          });
+
+          if (terms.bad) {
+            countEl.textContent = "invalid regular expression";
+            results.textContent = "";
+            noResults.classList.remove("hidden");
+            writeUrl();
+            return;
+          }
+          countEl.textContent = hits.length.toLocaleString() + " result"
+            + (hits.length === 1 ? "" : "s")
+            + (hits.length > MAX_RENDER ? ` (showing first ${MAX_RENDER})` : "");
+          schedulePaint(hits.slice(0, MAX_RENDER), terms);
+          noResults.classList.toggle("hidden", hits.length > 0);
+          writeUrl();
+        }
+
+        /* The query has had its punctuation stripped but the text has not, so
+           a term has to highlight through whatever separator the paper used:
+           the query "class g" must find the title's "Class-G". */
+        function termToPattern(term) {
+          const parts = term.split(" ").filter(Boolean)
+            .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+          if (!parts.length) return null;
+          /* Two patterns, matching the two edges termHit() accepts. Group 1
+             is whatever precedes the term and group 2 the term itself, so the
+             mark lands on the term alone - a lookbehind would be neater but is
+             young in Safari. */
+          const body = parts.join("[^A-Za-z0-9]+");
+          const flags = caseSensitive ? "g" : "gi";
+          try {
+            return [
+              new RegExp("(^|[^A-Za-z0-9])(" + body + ")", flags),
+              new RegExp("()(" + body + ")(?![A-Za-z0-9])", flags),
+            ];
+          } catch (e) { return null; }
+        }
+        function globToPattern(term) {
+          const body = term.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                           .replace(/\*/g, "[A-Za-z0-9]*")
+                           .replace(/\?/g, "[A-Za-z0-9]");
+          try { return new RegExp(body, caseSensitive ? "g" : "gi"); }
+          catch (e) { return null; }
+        }
+        function buildHighlights(terms) {
+          if (terms.bad) return [];
+          if (terms.regex) {
+            const flags = terms.regex.flags.indexOf("g") === -1
+              ? terms.regex.flags + "g" : terms.regex.flags;
+            try { return [new RegExp(terms.regex.source, flags)]; }
+            catch (e) { return []; }
+          }
+          const patterns = [];
+          terms.phrases.concat(terms.words).forEach(term => {
+            const pair = termToPattern(term);
+            if (pair) patterns.push(pair[0], pair[1]);
+          });
+          (terms.globsRaw || []).forEach(term => {
+            const pattern = globToPattern(term);
+            if (pattern) patterns.push(pattern);
+          });
+          return patterns;
+        }
+
+        function highlight(text, terms) {
+          const frag = document.createElement("span");
+          const pats = (terms && terms.hl) || [];
+          if (!pats.length || !text) { frag.textContent = text || ""; return frag; }
+
+          const spans = [];
+          pats.forEach(re => {
+            re.lastIndex = 0;
+            let m;
+            while ((m = re.exec(text)) !== null) {
+              // Term patterns capture the boundary separately; globs do not.
+              const lead = m.length > 2 ? (m[1] || "").length : 0;
+              const body = m.length > 2 ? (m[2] || "") : m[0];
+              if (body.length) spans.push([m.index + lead, m.index + lead + body.length]);
+              else re.lastIndex += 1;
+            }
+          });
+          if (!spans.length) { frag.textContent = text; return frag; }
+
+          /* Earliest first, longest first on a tie, then skip anything that
+             starts inside a run already marked. */
+          spans.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+          let i = 0;
+          spans.forEach(span => {
+            if (span[0] < i) return;
+            if (span[0] > i) frag.appendChild(document.createTextNode(text.slice(i, span[0])));
+            const m = document.createElement("mark");
+            m.textContent = text.slice(span[0], span[1]);
+            frag.appendChild(m);
+            i = span[1];
+          });
+          if (i < text.length) frag.appendChild(document.createTextNode(text.slice(i)));
+          return frag;
+        }
+
+        function cellFor(key, row, terms) {
+          if (key === "notes") return window.Annotations.buildControls(row.i || "");
+          const div = document.createElement("div");
+          if (key === "num") {
+            div.className = "cell-num";
+            const link = document.createElement("a");
+            link.href = row.s + "/year_" + row.y + ".html";
+            link.textContent = row.y;
+            div.appendChild(link);
+            div.appendChild(document.createElement("br"));
+            div.appendChild(document.createTextNode(row.p || ""));
+          } else if (key === "title") {
+            div.className = "cell-title";
+            if (row.u) {
+              const a = document.createElement("a");
+              a.href = row.u; a.target = "_blank"; a.rel = "noopener";
+              a.appendChild(highlight(row.t || "", terms));
+              div.appendChild(a);
+            } else {
+              div.appendChild(highlight(row.t || "", terms));
+            }
+          } else if (key === "source") {
+            div.className = "cell-source";
+            const tag = document.createElement("span");
+            tag.className = "src-tag";
+            tag.textContent = labelOf[row.s] || row.s;
+            div.appendChild(tag);
+            if (row.n) div.appendChild(document.createTextNode(" " + row.n));
+          } else if (key === "abstract") {
+            div.className = "cell-abstract";
+            div.appendChild(highlight(abstractOf(row), terms));
+          } else if (key === "authors") {
+            div.className = "cell-authors";
+            const names = (row.a || "").split("; ").filter(Boolean);
+            const entry = affilEntry(row);
+            const unique = (entry && entry.u) || [];
+            const perAuthor = (entry && entry.m) || [];
+            names.forEach((name, i) => {
+              const affil = unique[perAuthor[i]] || "";
+              const span = document.createElement("span");
+              span.className = "author" + (affil ? " has-affil" : "");
+              if (affil) {
+                span.setAttribute("data-affil", affil);
+                span.title = affil;
+              }
+              span.appendChild(highlight(name, terms));
+              div.appendChild(span);
+              if (i < names.length - 1) div.appendChild(document.createTextNode("; "));
+            });
+          } else if (key === "cites") {  // [c]
+            div.className = "cell-num";
+            div.textContent = row.k == null ? "" : row.k.toLocaleString();
+            div.title = "IEEE Xplore citations";
+          } else if (key === "affil") {
+            div.className = "cell-affil";
+            div.appendChild(highlight(affilOf(row), terms));
+          }
+          return div;
+        }
+
+        /* Two percent of titles carry inline LaTeX. Painting and typesetting
+           share one queue so MathJax is never asked to walk rows that are
+           being rebuilt under it, and a newer query replaces the paint still
+           waiting in the queue rather than stacking on top of it. */
+        let paintQueue = Promise.resolve(), paintToken = 0;
+
+        function typesetMath() {
+          if (!(window.MathJax && window.MathJax.typesetPromise)) return;
+          return window.MathJax.typesetPromise([results]);
+        }
+
+        function schedulePaint(rows, terms) {
+          const token = ++paintToken;
+          paintQueue = paintQueue.then(() => {
+            if (token !== paintToken) return;   // superseded while we waited
+            render(rows, terms);
+            return typesetMath();
+          }).catch(() => {});
+        }
+
+        /* Called by MathJax's pageReady once it is ready, in case the rows
+           were already on screen by then. */
+        window.searchTypesetMath = function () {
+          paintQueue = paintQueue.then(typesetMath).catch(() => {});
+        };
+
+        function render(rows, terms) {
+          results.textContent = "";
+          const keys = shownColumns().map(c => c.key);
+          const frag = document.createDocumentFragment();
+          rows.forEach(row => {
+            const div = document.createElement("div");
+            div.className = "paper-row";
+            div.dataset.id = row.i || "";
+            keys.forEach(key => div.appendChild(cellFor(key, row, terms)));
+            frag.appendChild(div);
+          });
+          results.appendChild(frag);
+        }
+
+        /* The current search lives in the URL, so a search can be bookmarked,
+           shared, or reopened where it was left. */
+        function readUrl() {
+          const u = new URLSearchParams(location.search);
+          if (u.has("q")) q.value = u.get("q");
+          if (u.has("sort")) sortSel.value = u.get("sort");
+          if (u.get("dir") === "asc") { descending = false; sortDir.textContent = "↑ Asc"; }
+          if (u.has("scope")) {
+            const r = document.querySelector(`input[name=scope][value="${u.get("scope")}"]`);
+            if (r) r.checked = true;
+          }
+          if (u.get("case") === "1") el("case-sensitive").checked = true;
+          if (u.has("from")) el("year-from").value = u.get("from");
+          if (u.has("to")) el("year-to").value = u.get("to");
+          if (u.has("src")) {
+            const want = new Set(u.get("src").split(",").filter(Boolean));
+            document.querySelectorAll(".src").forEach(c => { c.checked = want.has(c.value); });
+            el("src-all").checked = want.size === SOURCE_NAMES.length;
+          }
+        }
+
+        function writeUrl() {
+          const u = new URLSearchParams();
+          if (q.value.trim()) u.set("q", q.value.trim());
+          if (sortSel.value !== "relevance") u.set("sort", sortSel.value);
+          if (!descending) u.set("dir", "asc");
+          const scope = document.querySelector("input[name=scope]:checked").value;
+          if (scope !== "title") u.set("scope", scope);
+          if (el("case-sensitive").checked) u.set("case", "1");
+          if (el("year-from").value) u.set("from", el("year-from").value);
+          if (el("year-to").value) u.set("to", el("year-to").value);
+          const chosen = neededSources();
+          if (chosen.length !== SOURCE_NAMES.length) u.set("src", chosen.join(","));
+          const qs = u.toString();
+          history.replaceState(null, "", qs ? "?" + qs : location.pathname);
+        }
+
+        let timer = null;
+        function schedule() { clearTimeout(timer); timer = setTimeout(run, 120); }
+
+        q.addEventListener("input", schedule);
+        sortSel.addEventListener("change", run);
+        sortDir.addEventListener("click", () => {
+          descending = !descending;
+          sortDir.textContent = descending ? "↓ Desc" : "↑ Asc";
+          run();
+        });
+        ["year-from", "year-to"].forEach(id => el(id).addEventListener("input", schedule));
+        ["liked-only", "marked-only", "exact-phrase", "case-sensitive"]
+          .forEach(id => el(id).addEventListener("change", run));
+        document.querySelectorAll("input[name=scope]").forEach(r =>
+          r.addEventListener("change", () => ensureData().then(run)));
+        document.querySelectorAll(".src").forEach(c =>
+          c.addEventListener("change", () => {
+            el("src-all").checked = document.querySelectorAll(".src:checked").length === SOURCE_NAMES.length;
+            ensureData().then(run);
+          }));
+        /* Column visibility, width dragging, and the abstract clamp. */
+        const colPanel = el("col-toggles");
+        COLUMNS.forEach(c => {
+          const label = document.createElement("label");
+          const box = document.createElement("input");
+          box.type = "checkbox";
+          box.checked = colState[c.key].on;
+          box.dataset.col = c.key;
+          box.addEventListener("change", () => {
+            colState[c.key].on = box.checked;
+            saveColumns();
+            applyColumns();
+            ensureData().then(run);
+          });
+          label.appendChild(box);
+          label.appendChild(document.createTextNode(" " + c.label));
+          colPanel.appendChild(label);
+        });
+
+        el("col-reset").addEventListener("click", () => {
+          COLUMNS.forEach(c => { colState[c.key] = { w: c.w, on: c.on }; });
+          saveColumns();
+          applyColumns();
+          colPanel.querySelectorAll("input").forEach(b => {
+            b.checked = colState[b.dataset.col].on;
+          });
+          ensureData().then(run);
+        });
+
+        el("head").addEventListener("pointerdown", ev => {
+          const grip = ev.target.closest(".col-grip");
+          if (!grip) return;
+          ev.preventDefault();
+          const key = grip.dataset.col;
+          /* Text columns are shares of the window (fr). Take every shown
+             column's rendered width as its new share first, so the drag
+             starts from what is on screen and moves the edge by the mouse. */  // [c]
+          Array.from(el("head").children).forEach((cell, i) => {  // [c]
+            const col = shownColumns()[i];
+            if (col && !FIXED_COLS[col.key]) colState[col.key].w = Math.round(cell.getBoundingClientRect().width);
+          });
+          const startX = ev.clientX, startW = colState[key].w;
+          grip.classList.add("dragging");
+          document.body.classList.add("resizing");
+          const move = e => {
+            colState[key].w = Math.max(48, Math.round(startW + e.clientX - startX));
+            applyWidths();
+          };
+          const up = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            grip.classList.remove("dragging");
+            document.body.classList.remove("resizing");
+            saveColumns();
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+        });
+
+        const menu = el("col-menu"), menuBtn = el("col-menu-btn");
+        menuBtn.addEventListener("click", () => {
+          const open = menu.classList.toggle("hidden");
+          menuBtn.setAttribute("aria-expanded", String(!open));
+        });
+        document.addEventListener("click", ev => {
+          if (menu.classList.contains("hidden")) return;
+          if (menu.contains(ev.target) || ev.target === menuBtn) return;
+          menu.classList.add("hidden");
+          menuBtn.setAttribute("aria-expanded", "false");
+        });
+
+        const clampBox = el("clamp-abs");
+        const applyClamp = () => document.body.classList.toggle("clamp-abs", clampBox.checked);
+        clampBox.addEventListener("change", applyClamp);
+        applyClamp();
+
+        applyColumns();
+        start();
+
+        el("src-all").addEventListener("change", e => {
+          document.querySelectorAll(".src").forEach(c => { c.checked = e.target.checked; });
+          ensureData().then(run);
+        });
+      })();
+    </script>
+  </body>
+</html>

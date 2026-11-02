@@ -140,6 +140,49 @@ def _strip_inline_tags(text: str) -> str:
     return _INLINE_TAG_RE.sub("", text)
 
 
+# [c] 2026-11-02: the full-abstract endpoint (/rest/document/<n>/abstract)
+# writes JATS/MathML markup with attributes - <sup xmlns:mml="...">2</sup>,
+# <inline-formula><tex-math>$N$</tex-math></inline-formula>, <para>, <xref> -
+# which the bare-tag rules above missed: 17,974 abstracts showed raw tags.
+# Only these names are touched, so text like "BER<le-12" or "1.5 Ω<Re{Z}" stays.
+_MARKUP_TAGS = (
+    "italic|bold|b|i|em|strong|emphasis|inf|sub|sup|roman|monospace|sc|small|underline|u|"
+    "xref|uri|etal|citeref|citerefgrp|para|p|br|footnote|footnotepara|footnoteref|"
+    "tex-math|tex|inline-formula|disp-formula|formula"
+)
+_TAG_ATTRS_RE = re.compile(rf"<(/?)({_MARKUP_TAGS})(?:\s[^<>]*?)?(/?)>", re.IGNORECASE)
+_FORMULA_RE = re.compile(r"<(inline-formula|disp-formula|formula)>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
+_TEX_RE = re.compile(r"<(tex-math|tex)>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
+_BREAK_RE = re.compile(r"</?(para|p|br|footnotepara)/?>", re.IGNORECASE)
+# A <sup>/<sub> whose closing tag an earlier clean already dropped: take the next token.
+_ORPHAN_SUPSUB_RE = re.compile(r"<(sup|sub|inf)>([−+\-]?\d+(?:\.\d+)?|[A-Za-z0-9]+)", re.IGNORECASE)
+_ANY_MARKUP_RE = re.compile(rf"</?({_MARKUP_TAGS})/?>", re.IGNORECASE)
+
+
+def _tex_body(match: "re.Match[str]") -> str:
+    body = match.group(2).strip()
+    if "\\" in body and "$" not in body and not body.startswith("\\begin"):
+        body = f"${body}$"  # bare LaTeX: delimit it for MathJax
+    return body
+
+
+def _strip_markup(text: str) -> str:
+    """Render JATS/MathML abstract markup as text; safe to run on already-cleaned text."""
+    text = _TAG_ATTRS_RE.sub(lambda m: f"<{m.group(1)}{m.group(2).lower()}{m.group(3)}>", text)
+    text = re.sub(r"<etal/>", "et al.", text, flags=re.IGNORECASE)
+    text = re.sub(r"<(citeref|footnoteref)/>", "", text, flags=re.IGNORECASE)
+    text = _FORMULA_RE.sub(lambda m: (" %s " if m.group(1).lower() == "disp-formula" else "%s")
+                           % m.group(2).strip(), text)
+    text = _TEX_RE.sub(_tex_body, text)
+    text = _BREAK_RE.sub(" ", text)
+    text = _SUB_TAG_RE.sub(lambda m: _render_supsub_value("sub", m.group(2)), text)
+    text = _SUP_TAG_RE.sub(lambda m: _render_supsub_value("sup", m.group(1)), text)
+    text = _ORPHAN_SUPSUB_RE.sub(lambda m: _render_supsub_value(
+        "sup" if m.group(1).lower() == "sup" else "sub", m.group(2)), text)
+    text = _ANY_MARKUP_RE.sub("", text)
+    return re.sub(r"\s{2,}", " ", text)
+
+
 def _render_supsub_value(kind: str, raw: str) -> str:
     table = _SUPERSCRIPTS if kind == "sup" else _SUBSCRIPTS
     raw = raw.strip()
@@ -191,7 +234,7 @@ def clean_text(text: str | None) -> str:
             cleaned = once_more
 
     if "<" in cleaned:
-        cleaned = _strip_inline_tags(cleaned)
+        cleaned = _strip_markup(cleaned)  # [c] was _strip_inline_tags: missed tags with attributes
 
     if "$" in cleaned:
         cleaned = _LATEX_SPAN_RE.sub(_render_latex_span, cleaned)

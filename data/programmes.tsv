@@ -1,0 +1,41 @@
+# Programme PDFs published on a conference's own website.
+#
+# IEEE does not index a front-matter programme for every year - 14 conference
+# years in this corpus have none at all in Xplore. The conference itself
+# usually still publishes one, and it is often better than IEEE's: the VLSI
+# Symposium's own programme codes its sessions C1../T1.., which separates the
+# Circuits and Technology tracks structurally instead of by a hand-built list.
+#
+# One entry per line, tab-separated:
+#
+#   conference <TAB> year <TAB> url
+#
+# The PDF is fetched once and cached at cache/<conference>/toc/<year>-web.pdf,
+# then treated as another programme candidate - it still has to beat whatever
+# grouping the year already has, so adding a bad URL cannot damage a good year.
+#
+# Add a line, then run:
+#   python main.py --conference <id> --toc-sessions --year <year>
+
+vlsi	2026	https://archive.vlsisymposium.org/26web/wp-content/uploads/2026/05/VLSI26_Program_Finalv2.pdf
+vlsi	2021	https://archive.vlsisymposium.org/21web/files/program/VLSI2021_Advance_Program_Circ_20210609.pdf
+vlsi	2024	https://archive.vlsisymposium.org/24web/wp-content/uploads/2022/05/AdvanceProgram-6-14-combined.pdf
+cicc	2019	https://ieee-cicc.org/wp-content/uploads/2019/03/Technical-Program-3-11-19.pdf
+cicc	2020	https://ieee-cicc.org/wp-content/uploads/2020/03/2020-IEEE-CICC-3-24-20.pdf
+
+# HTML-only programmes. A line may list several comma-separated pages when
+# the conference splits its programme across them.
+vlsi	2005	https://archive.vlsisymposium.org/05web/circuits/technical.html
+cicc	2000	https://web.archive.org/web/20090203090724/http://ieee-cicc.org:80/2000/conference/program/tp0.html,https://web.archive.org/web/20090305140139/http://ieee-cicc.org:80/2000/conference/program/tp1.html,https://web.archive.org/web/20090203135800/http://ieee-cicc.org:80/2000/conference/program/tp2.html,https://web.archive.org/web/20090203135806/http://ieee-cicc.org:80/2000/conference/program/tp3.html,https://web.archive.org/web/20090203135812/http://ieee-cicc.org:80/2000/conference/program/tp4.html,https://web.archive.org/web/20090203135818/http://ieee-cicc.org:80/2000/conference/program/tp5.html,https://web.archive.org/web/20090203135841/http://ieee-cicc.org:80/2000/conference/program/tp6.html
+cicc	2001	https://web.archive.org/web/20081120194545/http://www.ieee-cicc.org/2001/conference/program/tp0.html,https://web.archive.org/web/20080424122412/http://www.ieee-cicc.org:80/2001/conference/program/tp1.html,https://web.archive.org/web/20080131202723/http://www.ieee-cicc.org:80/2001/conference/program/tp2.html,https://web.archive.org/web/20081120192017/http://www.ieee-cicc.org/2001/conference/program/tp3.html,https://web.archive.org/web/20100920093800/http://www.ieee-cicc.org:80/2001/conference/program/tp4.html,https://web.archive.org/web/20081120202101/http://www.ieee-cicc.org/2001/conference/program/tp5.html,https://web.archive.org/web/20080829002528/http://www.ieee-cicc.org/2001/conference/program/tp6.html,https://web.archive.org/web/20080916100919/http://www.ieee-cicc.org:80/2001/conference/program/tp7.html
+vlsi	2018	https://archive.vlsisymposium.org/20web/2018/wp-content/uploads/sites/14/2018/04/18-Circ-Program.pdf
+vlsi	2014	https://archive.vlsisymposium.org/14web/wp-content/uploads/2013/06/Circ-14-program.pdf
+vlsi	2016	https://archive.vlsisymposium.org/16web/wp-content/uploads/2013/06/16-circ-prg-1-1.pdf
+cicc	2005	https://web.archive.org/web/20051223183251/http://www.ieee-cicc.org/05Advance%20Program.pdf
+rfic	2019	https://rfic-ieee.org/sites/rfic/files/content_images/2019/docs/RFIC2019_Program_Book.pdf
+cicc	2018	https://www.ieee-cicc.org/wp-content/uploads/2018/04/Program-4-27-18.pdf
+cicc	2015	https://web.archive.org/web/20160829111552/http://ieee-cicc.org:80/technical-papers-monday/,https://web.archive.org/web/20160831153036/http://ieee-cicc.org:80/technical-papers-tuesday/,https://web.archive.org/web/20160831123405/http://ieee-cicc.org:80/technical-papers-wednesday/,https://www.ieee-cicc.org/2015/program/poster-sessions/
+# A-SSCC 2024: the conference's own session pages (epapers2.org), session_id 1..29.
+asscc	2024	https://epapers2.org/asscc2024/ESR/session_view.php?session_id=1,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=2,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=3,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=4,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=5,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=6,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=7,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=8,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=9,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=10,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=11,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=12,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=13,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=14,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=15,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=16,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=17,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=18,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=19,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=20,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=21,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=22,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=23,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=24,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=25,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=26,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=27,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=28,https://epapers2.org/asscc2024/ESR/session_view.php?session_id=29
+# A-SSCC 2007: advance programme PDF on the conference host (VDEC, Univ. of Tokyo); IEEE indexes no 2007 programme.
+asscc	2007	https://www.vdec.u-tokyo.ac.jp/A-SSCC2007/A-SSCC2007AdvanceProgram.pdf

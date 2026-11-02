@@ -8,6 +8,7 @@ Run it from update.bat, or directly:
     python update_database.py --no-sync        # skip the iCloud copy
     python update_database.py --no-data        # sync the site but not output/
     python update_database.py --affiliations 400   # also fetch affiliations
+    python update_database.py --citations      # also refresh every citation count
 
 What it does, in order:
 
@@ -16,7 +17,8 @@ What it does, in order:
 2. Scrapes each source. By default only the last few years are re-fetched
    (that is where records still change); missing older years are filled in.
 3. Validates and exports CSV/JSON.
-4. Optionally fetches per-author affiliations, newest years first.
+4. Optionally fetches per-author affiliations, newest years first, and with
+   --citations every paper's IEEE citation count (~25 min, all years).
 5. Rebuilds the static site and the master index.
 6. Copies changed files to iCloud - the browsable site at the folder root,
    your marks under userdata/, and the dataset under output/. Only changed
@@ -41,6 +43,8 @@ from config import CONFERENCES, get_config
 from html_builder import (
     annotations_path,
     build_html_for_year_range,
+    build_global_search,
+    copy_vendor_assets,
     build_master_index,
     write_annotations_seed,
 )
@@ -182,7 +186,9 @@ def build_site(conference_ids: Iterable[str]) -> None:
             conference_name=cfg.conference_name,
         )
         write_annotations_seed(cfg.html_dir)
+    copy_vendor_assets(site_root=site_root)
     build_master_index(site_root=site_root, conference_ids=list(CONFERENCES.keys()))
+    build_global_search(site_root=site_root, conference_ids=list(CONFERENCES.keys()))
 
 
 # ----------------------------------------------------------------------
@@ -295,6 +301,8 @@ def main(argv: List[str] | None = None) -> int:
                         help=f"Re-scrape every year from {FIRST_YEAR} instead of just recent ones.")
     parser.add_argument("--affiliations", type=int, metavar="N", default=0,
                         help="Also fetch author affiliations for up to N papers per source.")
+    parser.add_argument("--citations", action="store_true",  # [c]
+                        help="Refresh IEEE citation counts for every year (tools/refresh_citations.py).")
     parser.add_argument("--no-sync", action="store_true", help="Skip the iCloud copy.")
     parser.add_argument("--no-scrape", action="store_true",
                         help="Rebuild and sync from existing data without hitting the API.")
@@ -321,6 +329,9 @@ def main(argv: List[str] | None = None) -> int:
                 logger.exception("Source %s failed: %s", conference_id, exc)
     else:
         logger.info("--no-scrape: using existing JSON.")
+    if args.citations:  # [c]
+        from tools import refresh_citations
+        refresh_citations.main(["--sources", ",".join(ids)])
 
     # 5. Rebuild the viewer.
     build_site(ids if args.conference != "all" else CONFERENCES.keys())

@@ -9,6 +9,7 @@ syncs to iCloud.
 
     python serve.py               # http://localhost:8800
     python serve.py --port 9000
+    python serve.py --host 0.0.0.0   # reachable from the LAN, e.g. a phone
 """
 
 from __future__ import annotations
@@ -111,6 +112,8 @@ def main() -> int:
     setup_logging()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8800)
+    parser.add_argument("--host", default="127.0.0.1",  # [c]
+                        help="Address to listen on; 0.0.0.0 opens it to the LAN (anyone there can edit marks).")
     parser.add_argument("--no-browser", action="store_true", help="Do not open a browser window.")
     args = parser.parse_args()
 
@@ -120,7 +123,7 @@ def main() -> int:
 
     handler = partial(AnnotationHandler, directory=str(SITE_ROOT))
     url = f"http://localhost:{args.port}/"
-    with ThreadingHTTPServer(("127.0.0.1", args.port), handler) as httpd:
+    with ThreadingHTTPServer((args.host, args.port), handler) as httpd:  # [c]
         logger.info("Serving %s at %s  (Ctrl+C to stop)", SITE_ROOT, url)
         logger.info("Marks save to %s", annotations_path())
         if not args.no_browser:

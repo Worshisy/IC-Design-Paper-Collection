@@ -132,6 +132,12 @@ CASES: list[tuple[str, bool]] = [
     ("A Sponsors-Free Randomness Extractor in 28nm CMOS", False),
     ("Registration-Free Image Alignment Processor for AR Glasses", False),
     ("A 7V/us Tutorial-Free Gate Driver for GaN FETs", False),
+    # Session headers ending in "subcommittee" - a broad rule once deleted
+    # 27 of ISSCC 2012's 28 headers.
+    ("Session 3 overview: Processors: High performance digital subcommittee", False),
+    ("Session 2 overview: High-bandwidth DRAM & PRAM: Memory subcommittee", False),
+    ("ISSCC 2025 ITPC European Subcommittee", True),
+    ("ISSCC 2026 ITPC EWAA (Europe, West Asia, Africa) Regional Subcommittee", True),
     # --- session headers must survive filtering ---------------------------
     ("Session 12 Overview: Data Converters", False),
     ("ISSCC 2024 Session 1 Overview: Plenary", False),

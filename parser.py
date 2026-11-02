@@ -265,7 +265,7 @@ SKIP_PATTERNS = (
     re.compile(r"^short\s+course\b", re.IGNORECASE),
     re.compile(r"^workshop\s+on\b", re.IGNORECASE),
     re.compile(r"\btutorials?$", re.IGNORECASE),
-    re.compile(r"^(?:isscc|rfic|cicc|esscirc|esserc)\s+\d{4}\s+(?:tutorial|short\s+course|forum|index|conference|breaker|reflections|foreword|awards?|ad\s+page|cover|organizers)", re.IGNORECASE),
+    re.compile(r"^(?:isscc|rfic|cicc|esscirc|esserc|a-?sscc)\s*\d{4}\s+(?:tutorial|short\s+course|forum|index|conference|breaker|reflections|foreword|forward|preface|program|awards?|ad\s+page|cover|organizers)", re.IGNORECASE),  # [c]
     re.compile(r"^es\d*\s*:\s*student\s+research", re.IGNORECASE),
     re.compile(r"^se\d+\s", re.IGNORECASE),
     re.compile(r"^td\s*:\s", re.IGNORECASE),
@@ -274,7 +274,9 @@ SKIP_PATTERNS = (
     re.compile(r"^pdf\s+not\s+available", re.IGNORECASE),
     # Committee / subcommittee listings in any phrasing.
     re.compile(r"\bitpc\b.*\bsubcommittee\b", re.IGNORECASE),
-    re.compile(r"\bsubcommittee$", re.IGNORECASE),
+    # NOT a bare "...subcommittee$": ISSCC session headers end that way
+    # ("Session 3 overview: Processors: High performance digital subcommittee").
+    re.compile(r"\b(?:itpc|regional|technical\sprogram)\b[^:]*\bsubcommittee$", re.IGNORECASE),
     # Glossaries and keyword indexes.
     # Anchored: "ISSCC glossary" is front matter, "A Glossary of Terms for
     # Sigma-Delta Converters" is a real paper.
@@ -294,6 +296,8 @@ SKIP_PATTERNS = (
     re.compile(r"^techrxiv\b", re.IGNORECASE),
     re.compile(r"^short\s+course\s*\d*$", re.IGNORECASE),
     re.compile(r"^\d{4}\s+symposium\s+on\s+vlsi", re.IGNORECASE),
+    re.compile(r"^\d{4}\s+(?:ieee\s+)?asian\s+solid[\s-]*state\s+circuits\s+conference",  # [c]
+               re.IGNORECASE),
     re.compile(r"\btechnical\s+sess(?:ion|oin)s?$", re.IGNORECASE),
     re.compile(r"\blist of reviewers\b", re.IGNORECASE),
     re.compile(r"^\d{4}\s+list of reviewers", re.IGNORECASE),
@@ -304,6 +308,7 @@ SKIP_PATTERNS = (
     re.compile(r"^(?:forum|evening\s+event|social\s+event|panel|panel\s+discussion|"
                r"short\s+course|tutorial)\s*\d*\s*:", re.IGNORECASE),
     re.compile(r"\bpanel\s+discussion$", re.IGNORECASE),
+    re.compile(r"\[\s*panel\s+discussions?\s*\]$", re.IGNORECASE),  # [c]
     re.compile(r"^(?:tutorials|short\s+courses|forums|evening\s+events)\b", re.IGNORECASE),
     re.compile(r"\[\s*\d+\s+abstracts?\s*\]$", re.IGNORECASE),
     # Venue / logistics pages.
@@ -325,6 +330,23 @@ SKIP_PATTERNS = (
     # Co-located events that are not this conference's papers.
     re.compile(r"^(?:ims|mtt-s)\b", re.IGNORECASE),
     re.compile(r"\bmicrowave\s+week\b", re.IGNORECASE),
+    # --- enumerated from the Unassigned buckets, 2026-09-21 ---
+    # Bracketed programme placeholders: "[Opinion]", "[Teaser abstract]".
+    re.compile(r"^\[(?:opinion|teaser abstract)\]$", re.IGNORECASE),
+    # Workshop and panel codes RFIC prints as though they were papers:
+    # "WSA: Advances in ...", "RPM-A: Who will win ...", "RPTU-A: ...".
+    re.compile(r"^(?:ws|rpm|rptu|rtu)[a-z]?(?:-[a-z0-9])?\s*:\s", re.IGNORECASE),
+    # Panels, fora and round tables.
+    re.compile(r"^round\s+table\b", re.IGNORECASE),
+    re.compile(r"\b(?:forum|panel\s+session|round\s+table)$", re.IGNORECASE),
+    # Bare plenary-speaker placeholders. A plenary WITH a talk title after the
+    # colon is a real talk and is left alone.
+    re.compile(r"^plenary\s+speakers?\s*\d*$", re.IGNORECASE),
+    # Venue and logistics.
+    re.compile(r"\bconvention\s+cent(?:er|re)\s+maps?$", re.IGNORECASE),
+    re.compile(r"\bsymposium\s+activities$", re.IGNORECASE),
+    # Poster/breaker separator pages.
+    re.compile(r"\bposter\s+session\s*\[breaker\s+page\]$", re.IGNORECASE),
 )
 
 # Abstracts IEEE attaches to front matter. Far more reliable than the title
@@ -359,6 +381,18 @@ FRONT_MATTER_ABSTRACTS = (
 # the prefix rather than a substring keeps a real abstract that merely uses the
 # word "advertisement" safe.
 FRONT_MATTER_ABSTRACT_PREFIXES = (
+    # Section dividers: "Start of the above-titled section of the conference
+    # proceedings record." ISSCC 2006 files five of these as papers.
+    "start of the above-titled section",
+    "start of the above titled section",
+    # Short courses and tutorials, whose text is never published. Note that
+    # "summary form only given" on its own is NOT a marker - IEEE puts it on
+    # real digest papers too, so it is paired with a course marker below.
+    "provides an abstract of the tutorial presentation",
+    "provides an abstract of the short course",
+    # Forward-looking event listings.
+    "provides a listing of upcoming conference events",
+
     "advertisement",
     "provides notice of upcoming conference",
     "provides notice of upcoming special issue",
@@ -375,10 +409,19 @@ FRONT_MATTER_ABSTRACT_PREFIXES = (
 # carries this auto-generated keyword-list abstract, and must not be dropped.
 KEYWORD_LIST_ABSTRACT = "the following topics are dealt with"
 
+# A record whose abstract begins like this IS a session heading, not a paper:
+# "Presents an overview of the above titled session held at the conference".
+# ISSCC 2006 carries 31 of them and no programme PDF at all, so this is the
+# only structure that year has.
+SESSION_OVERVIEW_ABSTRACT = "presents an overview of the above titled session"
+
 # Programme items - schedules, panels, social events - listed among the
 # papers. Treated as front matter ONLY when the record has no authors: a real
 # paper called "Panel-Sized TFT-LCD Column Driver" (8 authors) and an invited
 # "Keynote speaker: Massive MIMO ..." (2 authors) must both survive.
+# Roman-numeral page numbers mark front matter (i, iv, xvii, ...).
+ROMAN_PAGE_RE = re.compile(r"^[ivxlcdm]+$", re.IGNORECASE)
+
 PROGRAMME_TITLE_RE = re.compile(
     r"^(?:"
     r"listing|schedule|maps?|about|registration|transportation|"
@@ -386,9 +429,11 @@ PROGRAMME_TITLE_RE = re.compile(
     r"social(?:\s+and\s+special)?\s+events?|special\s+events?|"
     r"poster\s+sessions?|student\s+research\s+preview|"
     r"industry\s+showcase|committee\s+photos?|"
-    r"special\s+session|career\s+panel|plenary\s+speakers?|"
+    r"special\s+session|career\s+panel|"
     r"plenary\s+session|plenary,|foreward|demo\s+session|"
-    r"networking|closing\s+remarks?|opening\s+remarks?"
+    r"networking|closing\s+remarks?|opening\s+remarks?|"
+    r"advance\s+programs?|sessions|floor\s*plans?|traffic\s+flow|"  # [c]
+    r"conference\s+site\s+maps?|panel\s+discussions?|pd-?\d+"  # [c]
     r")(?=$|[\s:,.])",   # not \b: that matches before a hyphen,
                              # turning "About-Face: A ..." into front matter
     re.IGNORECASE,
@@ -422,6 +467,10 @@ def _clean_session_name(raw_name: Optional[str]) -> str:
         return ""
     name = raw_name.strip()
     name = re.sub(r"^Overview\s*[:\-–]\s*", "", name, flags=re.IGNORECASE)
+    # CICC titles its session records "Session 2 - Low power analog" with an em
+    # dash the header regex leaves behind, so the name arrived as "- Low power
+    # analog" - which then failed every plausibility check downstream.
+    name = re.sub(r"^[\s:\-–—]+", "", name)
     name = SESSION_NAME_NOISE_RE.sub("", name)
     # Session names never went through this, so legacy markup showed on the
     # page: "filters and continuous-time /spl Delta//spl Sigma/ converters".
@@ -449,7 +498,20 @@ def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
     would recognise.
     """
 
+    # A parseable session header is structure, never front matter. Without
+    # this guard a broad rule silently deletes a year's session skeleton -
+    # "\bsubcommittee$" once removed 27 of ISSCC 2012's 28 headers, which end
+    # "...: Memory subcommittee".
+    if _parse_session_header(title) is not None:
+        return False
+
     if _is_front_matter(title):
+        return True
+
+    # Front matter is paginated in roman numerals; a real paper never is.
+    # ISSCC 2006 files a Foreword and three essays on iii/xiii/xv/xvii.
+    start_page = str(rec.get("startPage") or "").strip()
+    if start_page and not start_page[0].isdigit() and ROMAN_PAGE_RE.match(start_page):
         return True
 
     # Authorless programme items (schedules, panels, social events).
@@ -461,6 +523,13 @@ def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
         return False
 
     head = abstract[:160]
+    # A short course or tutorial, not a paper. Both halves are required: the
+    # first phrase alone appears on real digest papers.
+    if abstract.startswith("summary form only given") and any(
+        marker in head for marker in ("short course", "this tutorial", "the tutorial")
+    ):
+        return True
+
     if abstract.startswith(FRONT_MATTER_ABSTRACT_PREFIXES):
         return True
     if any(marker in head for marker in FRONT_MATTER_ABSTRACTS):
@@ -652,7 +721,17 @@ def _extract_paper(
         doi=rec.get("doi"),
         article_number=str(rec.get("articleNumber") or "") or None,
         start_page=str(rec.get("startPage") or "") or None,
+        citation_count=citation_count(rec),  # [c]
     )
+
+
+def citation_count(rec: Dict[str, Any]) -> Optional[int]:  # [c]
+    """IEEE's citationCount as an int; None when the record has none."""
+
+    try:
+        return int(rec.get("citationCount"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _paper_prefix_session_number(raw_title: str) -> Optional[int]:
@@ -757,6 +836,7 @@ def build_conference_year_from_api(
 
     else:
         current_session: Optional[Session] = None
+        overview_counter = 0
         unsorted_papers: List[Tuple[Dict[str, Any], str]] = []
         sessions_by_number: Dict[int, Session] = {}
 
@@ -806,6 +886,15 @@ def build_conference_year_from_api(
                 conference_dates = rec.get("publicationDate", "")
 
             if _is_front_matter_record(rec, raw_title):
+                continue
+
+            # A session-overview record defines a session; its title is the
+            # session name.
+            if SESSION_OVERVIEW_ABSTRACT in (rec.get("abstract") or "").lower():
+                overview_counter += 1
+                current_session = _get_or_create_session(
+                    overview_counter, _clean_session_name(raw_title)
+                )
                 continue
 
             header = _parse_session_header(raw_title)

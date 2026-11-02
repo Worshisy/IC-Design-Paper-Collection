@@ -18,13 +18,13 @@ CONFERENCE_CHOICES = list(CONFERENCES.keys()) + ["all"]
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Scrape IEEE Xplore proceedings/journals (ISSCC, RFIC, CICC, JSSC, SSCL, TCAS-I, TCAS-II, TMTT, VLSI) and build local datasets.",
+        description="Scrape IEEE Xplore proceedings/journals (ISSCC, RFIC, CICC, ESSCIRC, VLSI, A-SSCC, JSSC, SSCL, TCAS-I, TCAS-II, TMTT) and build local datasets.",  # [c]
     )
     parser.add_argument(
         "--conference",
         choices=CONFERENCE_CHOICES,
         default="isscc",
-        help="Source to scrape/build (e.g. isscc, rfic, cicc, jssc, sscl, tcas1) or all (default: isscc).",
+        help="Source to scrape/build (e.g. isscc, rfic, cicc, asscc, jssc, sscl, tcas1) or all (default: isscc).",  # [c]
     )
     parser.add_argument(
         "--start-year",
@@ -113,7 +113,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.build_html_only:
         try:
-            from html_builder import build_html_for_year_range, build_master_index
+            from html_builder import (build_global_search, copy_vendor_assets,
+                          build_html_for_year_range,
+                          build_master_index)
         except ImportError:
             logger.error(
                 "--build-html-only was requested but html_builder is not available."
@@ -136,7 +138,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         if args.conference == "all":
             site_root = get_config(ids[0]).project_root / "site"
+            copy_vendor_assets(site_root=site_root)
             build_master_index(site_root=site_root, conference_ids=list(CONFERENCES.keys()))
+            build_global_search(site_root=site_root, conference_ids=list(CONFERENCES.keys()))
         return 0
 
     if args.reparse:

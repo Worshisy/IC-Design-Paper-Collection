@@ -85,6 +85,7 @@ A `Paper` carries:
 | `affiliations` | Index-aligned with `authors`: `affiliations[i]` belongs to `authors[i]`. Empty until enrichment has run. |
 | `author_affiliations_raw` | Deduplicated affiliations joined with `"; "`, for display and CSV. |
 | `paper_url`, `doi` | Links. |
+| `citation_count` | IEEE Xplore's "Cited by Papers" count when the record was fetched (`citationCount`). Refreshed by `tools/refresh_citations.py`; fetch dates in `output/citations_updated.json`. |
 
 For journals, "session" means "issue" — the same structure is reused, with
 `session_name` set to `"Vol. 61, Issue 3"` (or `"Vol. 9"` when the journal
@@ -100,7 +101,7 @@ python main.py --conference all --reparse     # rebuild JSON offline, no network
 ```
 
 Without it, changing a front-matter rule meant a ~27-minute re-scrape of all
-nine sources and another few thousand requests at IEEE. With it, the same
+eleven sources and another few thousand requests at IEEE. With it, the same
 change is re-applied in seconds and IEEE is not touched at all. Re-fetch only
 when you actually want newer records.
 

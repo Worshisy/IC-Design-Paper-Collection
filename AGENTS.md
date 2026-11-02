@@ -1,143 +1,116 @@
-# AGENTS.md — IEEE Paper Collection workspace
+# AGENTS.md — IEEE paper collection
 
-> **Review status:** ⏳ Unreviewed *(default; update when Yi reviews)*
->
-> ✍️ Claude-authored (2026-09-20). Shared coordination log for every agent
-> working in this tree — read it before doing anything else, and append to it
-> rather than restructuring it.
+✍️ Claude-authored (2026-09-20). Restructured on 2026-11-02 to the
+`/Workflow:workspace-bootstrap` layout: rules, state and one-line pitfalls only.
+The old gotcha stories and the handoff log moved verbatim to
+[`docs/07-history.md`](docs/07-history.md), and closed work is indexed in
+[`DONE.md`](DONE.md).
 
----
+## 1. What this is
 
-## 1. What this workspace is
+A scraper and static viewer for IEEE Xplore paper metadata from 11 sources
+(6 conferences, 5 journals). It produces JSON/CSV and a browsable offline
+site. The code travels through GitHub and the dataset through iCloud. The
+folder map is in [`README.md`](README.md#layout).
 
-A scraper + static viewer for IEEE Xplore paper metadata across 9 sources
-(4 conferences, 5 journals), producing JSON/CSV datasets and a browsable
-offline HTML site. The dataset is shared through iCloud; the code through
-GitHub.
+## 2. Current state
 
-- **Remote:** https://github.com/Worshisy/IC-Design-Paper-Collection.git
-- **iCloud target:** `C:\Users\Yi Shen\iCloudDrive\IC_Design_Materials\Paper_Collection`
-- **Python:** 3.11+ required (`dataclass(slots=True)`). On Yi's PC the working
-  interpreter is `D:\anaconda3\python.exe` (3.12.3). The `python` on PATH is
-  **3.9 and cannot run this project**.
+- **Python:** `D:\anaconda3\python.exe` (3.12.3) with `PYTHONIOENCODING=utf-8`.
+  The `python` on PATH is 3.9 and cannot run this project.
+- **Remote:** `https://github.com/Worshisy/IC-Design-Paper-Collection.git`.
+  It has never received this work (see `ONGOING.md`).
+- **iCloud target:** `C:\Users\Yi Shen\iCloudDrive\IC_Design_Materials\Paper_Collection`.
+- **Dataset:** 275 year files and 62,634 search rows including Early Access
+  (`update_database.py`, 2026-11-01). Affiliations: 99.2% (2026-10-12). Every
+  paper has an IEEE citation count (2026-10-22).
+- **Abstracts:** the search API cuts them at about 400 characters. Full text
+  comes from `tools/restore_abstracts.py` into `cache/<id>/abstracts_full.json`,
+  and the scraper re-applies it on every write. Progress is in `ONGOING.md`.
+- **Viewer:** `serve.py --host 0.0.0.0 --port 18817` runs under `pythonw` from
+  the Startup shortcut "Paper viewer (LAN 18817)", so it is reachable on the
+  home LAN. Marks save to `userdata/annotations.json`.
+- **IEEE pacing** (`config.py`, `utils.RateLimiter`, verified 2026-11-01):
+  - a random 1-5 s gap between requests (0.45-2.25 s for author lookups), with
+    a new seed every hour;
+  - after a random 55-65 min of requests, a random 15-45 min rest.
 
-## 2. Workspace map
+  `tools/restore_abstracts.py` paces itself the same way with 1 worker. Any
+  single 418/429/403/5xx, or a lost connection, slows it and pauses it; three
+  in a row stop it, it tests once at 30/60/120/120 min, then exits with code 3.
 
-```
-log_paper/
-├── README.md                 ✍️ orientation + quick start
-├── AGENTS.md                 ✍️ this file — canonical state, gotchas, handoffs
-├── ONGOING.md                ✍️ active threads (delete sections as they finish)
-├── CODEMAP.md                ✍️ code file -> the docs that describe it
-├── DEV_LOG.md                🟦 pre-existing maintenance log (earlier agent)
-├── update.bat                ✍️ ONE-CLICK update entry point
-├── update_database.py        ✍️ refresh -> validate -> build -> iCloud sync
-├── serve.py                  ✍️ local server so paper marks save to disk
-├── main.py                   🟦 CLI (edited ✏️)
-├── config.py                 🟦 sources + ScraperConfig (edited ✏️)
-├── scraper.py                🟦 REST API access (edited ✏️)
-├── parser.py                 🟦 records -> Year/Session/Paper (edited ✏️)
-├── models.py                 🟦 pydantic dataclasses (edited ✏️)
-├── validation.py             🟦 structural checks + CSV export (edited ✏️)
-├── html_builder.py           🟦 Jinja rendering (edited ✏️)
-├── templates/
-│   ├── _styles.css.j2        ✍️ shared CSS
-│   ├── _scripts.js.j2        ✍️ shared JS (theme, density, marks)
-│   ├── year.html.j2          ✍️ rewritten
-│   ├── index.html.j2         ✍️ rewritten
-│   └── master_index.html.j2  🟦 conference picker
-├── docs/                     ✍️ formal reference notes, numbered
-├── scratch/                  ✍️ dated ad-hoc findings
-├── userdata/annotations.json ✏️ YI'S DATA — never regenerate, only merge
-├── output/<id>/{json,csv}/   generated dataset (git-ignored)
-├── site/<id>/                generated viewer (git-ignored)
-└── cache/<id>/               affiliation cache (git-ignored)
-```
+## 3. Project rules (from Yi)
 
-Authorship key: 🟦 pre-existing (author unknown — the tree had no git history
-before 2026-09-20) · ✏️ Yi's data/edits · ✍️ Claude-authored.
+1. **`userdata/annotations.json` is Yi's data.** Merge per paper, newest
+   `updated` wins. No scrape, rebuild or sync may overwrite it. (2026-09-20)
+2. **Never commit the dataset**: `output/`, `site/`, `cache/`, `userdata/`,
+   `data/session_overrides.tsv`, PDFs. This is a copyright constraint, so the
+   repo holds scripts and docs only. Check `git status` before any push, and
+   ask before pushing. (2026-09-20)
+3. **iCloud sync runs once, as the last step**, copying changed files only;
+   use `--no-sync` until then. Yi may ask for an extra sync. (2026-09-20)
+4. **Numbers in docs come from a run you did**, never carried forward. (2026-09-20)
+5. **A `__DROP__` override is a deletion and needs Yi's word.** (2026-10-12)
+6. **One sub-agent per conference year that needs special-case programme
+   recovery**, rather than scripting through the years in the main session.
+   Yi: *"each year you can find the material, for conf just send a sub agent
+   to deal with special case, no need to have to do that with script"*.
+   (2026-10-12)
+7. **Slow and safe beats fast for one-off IEEE jobs.** Never two IEEE clients
+   at once, and no captcha passing. Routing through another machine's IP
+   (the Mac mini tunnel) only when Yi starts or approves it for that run.
+   (2026-11-01)
+8. **Mark code edits `# [c]`**; Yi strips them after review.
 
-## 3. Hard rules for this tree
+## 4. Pitfalls (symptom → cause → fix)
 
-1. **`userdata/annotations.json` is Yi's data.** Likes, marks and notes live
-   there, keyed by IEEE article number. No scrape, rebuild or sync may
-   overwrite it — merge per paper, newest `updated` timestamp wins. It is the
-   one file a database refresh must leave alone.
-2. **Never commit the dataset — `output/`, `site/`, `cache/`, `userdata/` or
-   the PDFs.** This is a *legal* constraint, not a size one: those trees hold
-   IEEE paper metadata and abstracts, and republishing them in a public
-   GitHub repo is a copyright problem. **The repo is scripts and docs only.**
-   The dataset stays private and travels via iCloud, and is regenerable with
-   `update.bat`. Before any push, confirm `git status` shows no data files.
-3. **iCloud writes are expensive.** Sync runs once, as the last step, and
-   copies only files whose content hash changed. Do not add per-year or
-   per-source syncing.
-4. **Numbers in docs must come from a run you actually did.** Every figure in
-   `docs/` and `scratch/` traces to measured output; re-measure rather than
-   carrying a number forward.
+Numbered as in [`docs/07-history.md`](docs/07-history.md) §1, which has the
+full story of each one. Items 1-11 are the unnumbered first block there, in
+order.
 
-## 4. Gotchas discovered the hard way
+1. A title print dies with `UnicodeEncodeError` → the console is GBK → set `PYTHONIOENCODING=utf-8`.
+2. Tags render as text, or not at all → `select_autoescape(["html"])` ignores `.html.j2` → it is `("html","xml","j2")`.
+3. No affiliations in the records → the search API has none → one `/rest/document/<n>/authors` call per paper, cached.
+4. Front matter passes as papers → `articleContentType` is always "Conference Paper" → detect by title and abstract boilerplate.
+5. RFIC and VLSI have one "General" session → the API has no session data → recover it from the printed programme (docs/06).
+6. A phantom session 122 → a performance figure read as a paper number → prefix inference needs real headers.
+7. Early Access vanished → one year's scrape rewrote the shared file → it merges per year.
+8. A parser change needs re-scraping → no, `main.py --conference all --reparse` from the record cache.
+9. Front matter has no title clue → identify it by its abstract boilerplate.
+10. `/spl mu/`, `/sup 2/` and HTML entities appear in text → `textclean.py`; unknown names are left alone.
+11. A year is silently missing → the search term missed it (CICC 2010) → probe discovery before assuming IEEE lacks it.
+12. `--reparse` zeroed sessions or affiliations → `reparse_year` restores the layout, drops and affiliations.
+13. A re-run made a healthy year worse → the programme pass must beat the existing grouping.
+14. A filter rule deletes real papers → measure it first and read the longest titles it would remove.
+15. Regex escapes broke silently → bash heredocs mangle `\b` and `\\` → write scripts to a file, never a heredoc.
+16. A curated list entry matched nothing → each list has an audit tool; run it after every edit.
+17. A refresh flattened curated years → every year-file writer applies the whole curated layer.
+18. Re-applying the layer after a scrape restored nothing → it must happen inside `scrape_year`, before the write.
+19. A fix passed in isolation, then failed in sequence → test the real order of steps.
+20. Journal affiliations blanked → the year file was written twice → the Early Access split happens before the single write.
+21. A refresh dropped brand-new papers → `keep_articles` keeps papers unseen in the record cache.
+22. An acronym misses years (A-SSCC) → probe every year; the spelled-out name finds all of them.
+23. ISSCC's matcher accepted A-SSCC titles → re-read the title rules of similar sources; use `title_excludes_any`.
+24. "No usable programme" after checking one or two years → run the full sweep first.
+25. The programme is filed as a "Cover Page" → `_page_value` reads "c1".."c30"; read front-matter page ranges.
+26. A scanned or garbled programme → render the pages to PNG and read them as images.
+27. `splitlines()` cut lines at U+001C → decode the glyph shift before splitting.
+28. IEEE's `startPage` can be wrong → join on title *and* page.
+29. Parallel agents overwrote each other → separate scratch folders; each patch asserts its anchor once.
+30. The unassigned count can rise while recovery improves → a flat year has none by construction.
+31. Papers sit in the wrong session with no count showing it → join each to its printed entry (only A-SSCC is done).
+32. Overrides appended papers at the end → `_print_order` places them.
+33. A sub-agent's brief is too narrow → it reports instead of widening it.
+34. Searches only saw the first 400 characters → the search API truncates abstracts → `tools/restore_abstracts.py`.
+35. Abstracts show `<sup xmlns:mml=…>`, `<tex>`, `<inline-formula>` → the document endpoint writes JATS/MathML markup → `textclean._strip_markup`, `tools/repair_abstract_markup.py`; only listed tag names are touched, since "BER<10⁻¹²" is real text.
+36. IEEE answers 418 to the whole IP for days → a run of about 46k requests at about 2/s, plus retries that hid early 418s → the pacing in §2, and stop instead of retrying.
 
-- **Console encoding.** Python's stdout on this PC defaults to **GBK**; any
-  script printing a paper title dies with `UnicodeEncodeError`. Always set
-  `PYTHONIOENCODING=utf-8` (`update.bat` does). Mojibake seen in a terminal is
-  a console artifact — the stored JSON is clean UTF-8.
-- **`select_autoescape(["html"])` does nothing** for `*.html.j2` templates: it
-  matches the *final* extension only. Autoescape was silently off for the
-  life of the project. It is now `("html", "xml", "j2")`.
-- **The search API has no affiliations.** `POST /rest/search` returns author
-  names and IDs only. Affiliations need `GET /rest/document/<articleNumber>/authors`,
-  one request per paper (~0.7 s). Hence the resumable
-  `--enrich-affiliations` pass and `cache/<id>/affiliations.json`.
-- **`articleContentType` cannot identify front matter.** Every RFIC 2024
-  record — cover page, TOC and real papers alike — reports
-  `"Conference Paper"`. Front matter can only be detected from the title.
-- **RFIC and VLSI have no session data at all** in the API; a single "General"
-  session is the honest result, not a bug. CICC opens each session with an
-  untitled invited talk, which is not machine-distinguishable from a paper.
-  Only ISSCC exposes real `Session N Overview:` headers.
-- **A performance figure can look like a paper number.** VLSI 2024's
-  `"122.7 TOPS/W Stdcell-Based DNN Accelerator"` created session 122. Prefix
-  inference now requires the year to contain at least one real session header.
-- **Journal Early Access is shared across years.** Scraping one year used to
-  rewrite the whole `early_access.json`; it now merges per year.
-- **Re-parse, do not re-scrape, after a parser change.** Raw records are
-  cached in `cache/<id>/records/`; `main.py --conference all --reparse`
-  rebuilds every year offline in seconds. A full re-scrape is ~27 minutes and
-  several thousand requests at IEEE.
-- **IEEE front matter is best identified by its abstract**, not its title.
-  Covers, indexes and committee pages carry fixed boilerplate
-  ("Presents the title page of the proceedings record."). 445 such records
-  carry no title clue at all.
-- **Old records carry pre-Unicode markup**: `/spl mu/`, `/sup 2/`, and
-  undecoded HTML entities — 11.5k occurrences. `textclean.py` handles them.
-  Leave unknown `/spl …/` names alone rather than guessing.
-- **A search term is not a conference name.** CICC 2010 is indexed as
-  "IEEE Custom Integrated Circuits Conference 2010" and searching "CICC"
-  never found it, so the year was silently absent with no error file. When a
-  year is missing, check discovery before assuming IEEE lacks the data.
-  CICC 2016 really is absent from IEEE Xplore.
+## 5. Pointers
 
-## 5. Project state
-
-See `ONGOING.md` for what is in flight. The dataset counts after the
-2026-09-20 rebuild are in `docs/02-data-sources.md`.
-
-## 6. Handoff log
-
-### 2026-09-20 — Claude
-Audited the project (no git history existed; `git init` done, code-only
-`.gitignore`). Ran every code path against the live API to confirm behaviour
-before changing anything. Fixed: generic front-matter filtering, the VLSI
-false-positive session, Early Access clobbering, Jinja autoescape, embedded
-JSON escaping, ISSCC-hardcoded defaults, import-time directory side effects,
-unused imports. Added: per-author affiliation fetching, the like/mark/note
-system, a responsive non-truncating viewer, `update.bat` + `update_database.py`,
-`serve.py`. Rewrote both page templates and extracted shared CSS/JS partials.
-Full re-scrape of all 9 sources run afterwards.
-
-A Sonnet style-review pass ran over the original code; its findings are
-recorded in `scratch/2026-09-20-style-review.md` with what was and was not
-acted on. Per-source title audits (one agent per source) are recorded in
-`scratch/2026-09-20-source-audits.md`, including the heuristics that were
-measured and **rejected** for producing false positives on real papers.
+- Skills: `/Workflow:workspace-bootstrap` (this layout), `/Workflow:doc-style`,
+  `/Workflow:codemap`, `/Paper:field-glance` and `/Paper:deep-survey` (which
+  read this log).
+- [`surveys/README.md`](surveys/README.md): topic searches over the log at the lowest agent-token cost; reuse it for any "find the papers that…" question.
+- [`ONGOING.md`](ONGOING.md) for open threads, [`DONE.md`](DONE.md) for closed ones.
+- [`docs/README.md`](docs/README.md) for the reference notes in reading order;
+  [`CODEMAP.md`](CODEMAP.md) for which doc to update when a file changes.
+- [`DEV_LOG.md`](DEV_LOG.md): 🟦 the earlier maintainer's log, kept as it is.

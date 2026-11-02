@@ -38,6 +38,7 @@
       <header>
         <div class="topbar">
           <span class="muted">{{ conference_name }}</span>
+          <a href="../search.html">Search all sources</a>
           <span class="spacer"></span>
           <span class="sync-status" id="sync-status"></span>
           <button type="button" class="pill-btn" id="annot-export">Export marks</button>
@@ -136,7 +137,8 @@
         options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre"] }
       };
     </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <script id="MathJax-script" async src="../vendor/mathjax/tex-svg-full.js"
+            onerror="var s=document.createElement('script');s.async=true;s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg-full.js';document.head.appendChild(s);"></script>
     <script src="annotations.js" onerror="void 0"></script>
     <script>
 {% include "_scripts.js.j2" %}

@@ -80,7 +80,8 @@
              data-id="{{ row.article_number }}"
              data-authors="{{ row.authors | join('; ') }}"
              data-affils="{{ row.affiliations | join('|') }}">
-          <div class="cell-num">{{ row.paper_number }}</div>
+          <div class="cell-num"><span class="num">{{ row.paper_number }}</span>{# [c] #}
+            {% if row.citation_count is not none %}<span class="cites" title="IEEE Xplore citations" data-cites="{{ row.citation_count }}"></span>{% endif %}</div>
           <div class="cell-title">
             {% if row.paper_url %}<a href="{{ row.paper_url }}" target="_blank" rel="noopener">{{ row.title }}</a>
             {% else %}{{ row.title }}{% endif %}
@@ -99,7 +100,8 @@
         options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre"] }
       };
     </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    <script id="MathJax-script" async src="../vendor/mathjax/tex-svg-full.js"
+            onerror="var s=document.createElement('script');s.async=true;s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg-full.js';document.head.appendChild(s);"></script>
     <script src="annotations.js" onerror="void 0"></script>
     <script>
 {% include "_scripts.js.j2" %}
@@ -159,8 +161,8 @@
             var sorted = rows.slice().sort(function (a, b) {
               var av, bv;
               if (key === "num") {
-                var pa = (a.querySelector(".cell-num").textContent || "").split(".").map(Number);
-                var pb = (b.querySelector(".cell-num").textContent || "").split(".").map(Number);
+                var pa = (a.querySelector(".cell-num .num").textContent || "").split(".").map(Number);  // [c] .num
+                var pb = (b.querySelector(".cell-num .num").textContent || "").split(".").map(Number);
                 av = (pa[0] || 0) * 1000 + (pa[1] || 0);
                 bv = (pb[0] || 0) * 1000 + (pb[1] || 0);
               } else if (key === "title") {
