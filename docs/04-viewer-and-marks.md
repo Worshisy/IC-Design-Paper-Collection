@@ -16,7 +16,7 @@ Open `site/index.html` and it works from disk.
 | `site/<id>/year_<year>.html` | One year, grouped by session, with a filter box. |
 | `site/<id>/early_access.html` | Journals only: Early Access papers, grouped by year. |
 | `site/search.html` | Search across **every** source at once (see below). |
-| `site/surveys/index.html` | Topic surveys: one card per survey (run date, dataset date, years, sources, counts), each linking into its report's sub-areas. Linked from `site/index.html` once a survey exists; built from `surveys/<topic>/out/` (see `surveys/README.md`). |
+| `site/surveys/index.html` | Topic surveys: one card per survey (run date, dataset date, years, sources, counts), each linking into its report's sub-areas and its literature reviews (`<topic>-review-<level>.html`; paper figures in `site/surveys/fig/<topic>/`). Linked from `site/index.html` once a survey exists; built from `surveys/<topic>/out/` (see `surveys/README.md`). |
 | `site/<id>/annotations.js` | Generated snapshot of your marks (see below). |
 
 ## Layout

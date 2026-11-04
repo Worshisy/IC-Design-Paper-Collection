@@ -38,6 +38,9 @@
       {% for s in surveys %}
       <div class="card">
         <h2><a href="{{ s.report }}">{{ s.title }}</a></h2>
+        {% if s.reviews %}<div class="meta">Literature review:
+          {% for level, page in s.reviews.items() %}<a href="{{ page }}"><b>{{ level | capitalize }}</b></a>{% if not loop.last %} · {% endif %}{% endfor %}
+        </div>{% endif %}
         <div class="meta">
           Run {{ s.candidates_run or "?" }} · dataset as of {{ s.dataset_as_of or "?" }} ·
           papers {{ s.years_found | join("–") }} · {{ s.sources | length }} sources ·

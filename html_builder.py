@@ -400,6 +400,12 @@ def build_surveys_index(site_root: Path) -> int:  # [c]
             continue
         ensure_dir(site_root / "surveys")
         shutil.copy2(report, site_root / "surveys" / report.name)
+        for page in (meta.get("reviews") or {}).values():   # literature reviews built on the survey  [c]
+            if (meta_path.parent / page).exists():
+                shutil.copy2(meta_path.parent / page, site_root / "surveys" / page)
+        if (meta_path.parent / "fig").is_dir():             # paper figures embedded in Mid+ reviews  [c]
+            shutil.copytree(meta_path.parent / "fig", site_root / "surveys" / "fig" / meta_path.parent.parent.name,
+                            dirs_exist_ok=True)                 # one folder per topic: W ids repeat across topics  [c]
         metas.append(meta)
     if not metas:
         return 0

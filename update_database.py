@@ -248,8 +248,14 @@ ICLOUD_LAYOUT = {
 }
 
 
-def sync_to_icloud(icloud_root: Path, trees: Iterable[str]) -> Dict[str, int]:
-    """Mirror the given project subtrees into iCloud, copying changed files only."""
+def sync_to_icloud(icloud_root: Path, trees: Iterable[str],
+                   only: Iterable[str] | None = None) -> Dict[str, int]:
+    """Mirror the given project subtrees into iCloud, copying changed files only.
+
+    `only` limits the copy to paths (relative to each tree) starting with one of
+    these prefixes; a survey build passes ["index.html", "surveys/"].  # [c]
+    """
+    only = tuple(only) if only else None  # [c]
 
     stats = {"copied": 0, "skipped": 0, "bytes": 0}
     icloud_root.mkdir(parents=True, exist_ok=True)
@@ -265,6 +271,8 @@ def sync_to_icloud(icloud_root: Path, trees: Iterable[str]) -> Dict[str, int]:
             if not src.is_file():
                 continue
             relative = src.relative_to(src_root)
+            if only and not relative.as_posix().startswith(only):  # [c]
+                continue
             dst = base / relative
             key = f"{destination}/{relative.as_posix()}" if destination else relative.as_posix()
 

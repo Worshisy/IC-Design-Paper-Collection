@@ -48,6 +48,9 @@ folder map is in [`README.md`](README.md#layout).
    ask before pushing. (2026-09-20)
 3. **iCloud sync runs once, as the last step**, copying changed files only;
    use `--no-sync` until then. Yi may ask for an extra sync. (2026-09-20)
+   Exception: every new or rebuilt survey report goes to iCloud at once.
+   `survey.py report` does this itself, copying only `site/index.html` and
+   `site/surveys/`. (2026-11-03)
 4. **Numbers in docs come from a run you did**, never carried forward. (2026-09-20)
 5. **A `__DROP__` override is a deletion and needs Yi's word.** (2026-10-12)
 6. **One sub-agent per conference year that needs special-case programme

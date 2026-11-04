@@ -5,6 +5,14 @@ points; this file is an index. Created 2026-11-02 from the old `AGENTS.md`
 handoff log (full text in [`docs/07-history.md`](docs/07-history.md) §2) and
 the closed parts of `ONGOING.md`. Work up to 2026-11-02 is in 16bce73.
 
+## 2026-11-03 · Qubit review, level Mid   (opened 2026-11-03, owner sy-paper-log)
+Outcome: Mid review (4,902 words, 5 tables, 56 works, 12 full text) as `qubit-rw-review-mid.html`; structure from the CICC 2025/2023 overviews; 8 anchors abstract-only (IEEE fetch refused, Yi may supply PDFs).
+Shipped: uncommitted (log_paper), 50e8d28 (skills) · Results: surveys/qubit-rw/out/, /Paper:lit-review §4-5 · Follow-ups: optional figure check; 8 PDFs
+
+## 2026-11-03 · Qubit control/readout survey and Low review   (opened 2026-11-03, owner sy-paper-log)
+Outcome: 173 judged, 116 included (cryo tags); Low review by Codex (94 works, 65 cited, 0 check flags) as `qubit-rw-review-low.html` on the survey card; new skill /Paper:lit-review.
+Shipped: uncommitted (log_paper), 28021da (skills) · Results: surveys/README.md · Follow-ups: Mid level when Yi asks
+
 ## 2026-11-02 · GitHub publication   (opened 2026-09-21, owner sy-paper-log)
 Outcome: scripts and docs pushed; curated per-paper lists, programme text and agent outputs git-ignored with the dataset.
 Shipped: c7a7c64, 16bce73 · Results: .gitignore, AGENTS rule 2 · Follow-ups: none
