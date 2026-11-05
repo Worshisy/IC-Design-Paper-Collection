@@ -3,6 +3,12 @@
 Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
+## Thread: mini-radio Mid, add the CICC 2018 wake-up overview   (owner: sy-paper-log, updated 2026-11-05)
+Status: Yi had his Mac session download the CICC 2018 slides (8357115, 59 slides); text in k03 `proc_text/ieee/cicc2018-8357115.txt`.
+Done when: the general Mid's Receivers section uses it (cited OV2018, context only), check 0/0, republished.
+Running: Mac Codex terra outline (bg bcp3tn9g9) → Mac `~/lit-review/mini-radio/overview_structure_2018.md`.
+Next: copy the outline to `surveys/mini-radio/work/`; follow-up turn on writer thread `01a1a4ae-…`; `review-check`, `review-html --level mid`.
+
 ## Backlog
 - Survey reviews: Mid anchors still abstract-only (mini-radio 27 general + 5 XO-less, qubit 8) can get full-text rows if Yi saves their PDFs in Mac `~/incoming_lit/`; sy-mac-agent copies them to `k03:~/incoming_lit/` (steps: `/Paper:lit-review` §4).
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).
