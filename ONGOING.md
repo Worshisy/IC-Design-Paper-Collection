@@ -4,6 +4,8 @@ Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
 ## Backlog
+- ml-ams-rf: 4 abstract-only works in the Mid review (W056, W062, W103, W156) could get full text via the Mac agent if Yi wants a deeper pass.
+- il-freq: a Mid review on request (115 works; ISSCC/VLSI anchors on the pool, the rest via the Mac agent).
 - Survey reviews: 15 tier-B anchors (antenna/EM, chipless RFID, implant) are still abstract-only; list in Mac `~/lit-review/pdf_wishlist.md`; route in `/Paper:lit-review` §6.
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).
 - Session decisions for Yi: 5 yes/no items (RFIC 2006 placement, CICC 2018 drops, `_print_order`, A-SSCC calls, A-SSCC 2020 cross-listing) (parked; `scratch/parked-threads.md`).

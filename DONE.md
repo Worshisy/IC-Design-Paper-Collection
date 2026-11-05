@@ -5,6 +5,14 @@ points; this file is an index. Created 2026-11-02 from the old `AGENTS.md`
 handoff log (full text in [`docs/07-history.md`](docs/07-history.md) §2) and
 the closed parts of `ONGOING.md`. Work up to 2026-11-02 is in 16bce73.
 
+## 2026-11-05 · ml-ams-rf literature review, Low and Mid   (opened 2026-11-05, owner sy-paper-log)
+Outcome: all Codex; Low 52 works; Mid 29 works (25 full text, 19 PDFs via the Mac agent), 4 tables, 8 figures; sol row check 268 OK / 95 FIX of 363 facts; both checks 0/0, published with labels only.
+Shipped: next commit · Results: site/surveys/ml-ams-rf-review-*.html, /Paper:lit-review §4 and references/cost-table.md · Follow-ups: Backlog line for 4 abstract-only works
+
+## 2026-11-05 · il-freq survey and Low review   (opened 2026-11-05, owner sy-paper-log)
+Outcome: range agreed on a script-only rough survey; Haiku/Sonnet triage with Yi's strict M rule: 1,281 → 152 papers (115 works, 37 pairs); Opus Low review (72 works cited, check 0/0) published.
+Shipped: next commit · Results: site/surveys/il-freq*.html, /Paper:field-glance §0b step 0 · Follow-ups: Mid in Backlog
+
 ## 2026-11-05 · Survey reviews: full text for the missing anchors   (opened 2026-11-05, owner sy-paper-log)
 Outcome: OV2018 (CICC 2018 slides) in the mini-radio Mid; 23 tier-A PDFs via the Mac session became sol-checked rows (430/434 OK); qubit Mid 20/20 anchors full text, mini-radio Mid 29 rows, XO-less 19/19; overviews linked via `topic.json` → `overviews`; all republished, checks 0/0.
 Shipped: this commit · Results: site/surveys/, /Paper:lit-review §4 §6 and references/cost-table.md · Follow-ups: tier B (15 optional PDFs) in Backlog
