@@ -5,6 +5,10 @@ points; this file is an index. Created 2026-11-02 from the old `AGENTS.md`
 handoff log (full text in [`docs/07-history.md`](docs/07-history.md) §2) and
 the closed parts of `ONGOING.md`. Work up to 2026-11-02 is in 16bce73.
 
+## 2026-11-05 · Survey reviews: full text for the missing anchors   (opened 2026-11-05, owner sy-paper-log)
+Outcome: OV2018 (CICC 2018 slides) in the mini-radio Mid; 23 tier-A PDFs via the Mac session became sol-checked rows (430/434 OK); qubit Mid 20/20 anchors full text, mini-radio Mid 29 rows, XO-less 19/19; overviews linked via `topic.json` → `overviews`; all republished, checks 0/0.
+Shipped: this commit · Results: site/surveys/, /Paper:lit-review §4 §6 and references/cost-table.md · Follow-ups: tier B (15 optional PDFs) in Backlog
+
 ## 2026-11-04 · Topic-survey reviews: mini-radio Low/Mid/Mid (xo-less), qubit fixes   (opened 2026-11-03, owner sy-paper-log)
 Outcome: mini-radio survey (569 papers, 497 works) with Low, Mid (4,594 words, 17 full text, 8 figures) and focused Mid on XO-less radios (4,963 words, 14 full text, 7 figures), all Codex; sol row checks fixed 6/141, 23/203 (qubit Mid) and 18/260 facts; per-topic figures, `--focus`.
 Shipped: 2c1f387 + the `--focus` commit · Results: site/surveys/, surveys/README.md, /Paper:lit-review §4 and references/cost-table.md · Follow-ups: Backlog line for the optional anchor PDFs
