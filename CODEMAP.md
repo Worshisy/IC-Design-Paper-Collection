@@ -34,8 +34,7 @@ structure changes.
 | `update.bat` | `docs/05-operations.md`, `README.md` | Flags or the interpreter selection change. |
 | `serve.py` | `docs/04-viewer-and-marks.md`, `docs/05-operations.md` | The save endpoint or the default port changes. |
 | `utils.py` | `docs/01-architecture.md`, `docs/05-operations.md`, `AGENTS.md` §2 | HTTP session, retry wrapping, the rate limiter's gap, seed or long-run rest, or JSON IO changes. |
-| `templates/surveys_index.html.j2`, `html_builder.build_surveys_index` | `surveys/README.md`, `docs/04-viewer-and-marks.md` | the card fields or the copy into `site/surveys/` change |
-| `surveys/survey.py` | `surveys/README.md` | a stage, a topic.json key, the brief contract or the report checks change |
+| `templates/surveys_index.html.j2`, `html_builder.build_surveys_index` | `docs/04-viewer-and-marks.md` (and the private `surveys/README.md`) | the card fields or the copy into `site/surveys/` change |
 | `.gitignore` | `README.md`, `AGENTS.md` | What is or is not tracked changes. |
 
 ## Always-in-scope indexes

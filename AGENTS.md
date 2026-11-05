@@ -17,8 +17,16 @@ folder map is in [`README.md`](README.md#layout).
 
 - **Python:** `D:\anaconda3\python.exe` (3.12.3) with `PYTHONIOENCODING=utf-8`.
   The `python` on PATH is 3.9 and cannot run this project.
-- **Remote:** `https://github.com/Worshisy/IC-Design-Paper-Collection.git`.
-  It has never received this work (see `ONGOING.md`).
+- **Remote:** `https://github.com/Worshisy/IC-Design-Paper-Collection.git`,
+  public. It holds the scraper, the viewer and the general agent docs only.
+  On 2026-11-05 its history was rewritten to drop the literature-review files
+  (force-push; old hashes such as `16bce73` became `98aa16b`; full backup in
+  `D:\CodeProject\_backups\2026-11-05-log_paper-split\`).
+- **Companion repo:** `surveys/` is the private repo
+  `Worshisy/IC-Lit-Review` (topic surveys and literature reviews), nested
+  here and git-ignored. Its own `AGENTS.md` holds its rules, including
+  commit and push after each finished task. Reviews never go into this
+  public repo. (Yi, 2026-11-05)
 - **iCloud target:** `C:\Users\Yi Shen\iCloudDrive\IC_Design_Materials\Paper_Collection`.
 - **Dataset:** 275 year files and 62,634 search rows including Early Access
   (`update_database.py`, 2026-11-01). Affiliations: 99.2% (2026-10-12). Every
@@ -48,8 +56,8 @@ folder map is in [`README.md`](README.md#layout).
    ask before pushing. (2026-09-20)
 3. **iCloud sync runs once, as the last step**, copying changed files only;
    use `--no-sync` until then. Yi may ask for an extra sync. (2026-09-20)
-   Exception: every new or rebuilt survey report goes to iCloud at once.
-   `survey.py report` does this itself, copying only `site/index.html` and
+   Exception: survey and review pages from the private companion repo (§2)
+   go to iCloud at once; their builder copies only `site/index.html` and
    `site/surveys/`. (2026-11-03)
 4. **Numbers in docs come from a run you did**, never carried forward. (2026-09-20)
 5. **A `__DROP__` override is a deletion and needs Yi's word.** (2026-10-12)
@@ -112,7 +120,7 @@ order.
 - Skills: `/Workflow:workspace-bootstrap` (this layout), `/Workflow:doc-style`,
   `/Workflow:codemap`, `/Paper:field-glance` and `/Paper:deep-survey` (which
   read this log).
-- [`surveys/README.md`](surveys/README.md): topic searches over the log at the lowest agent-token cost; reuse it for any "find the papers that…" question.
+- `surveys/README.md` (in the private companion repo, §2): topic searches and literature reviews over the log at the lowest agent-token cost; reuse it for any "find the papers that…" question.
 - [`ONGOING.md`](ONGOING.md) for open threads, [`DONE.md`](DONE.md) for closed ones.
 - [`docs/README.md`](docs/README.md) for the reference notes in reading order;
   [`CODEMAP.md`](CODEMAP.md) for which doc to update when a file changes.

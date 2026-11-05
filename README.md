@@ -110,7 +110,7 @@ log_paper/
 │   ├── index.html.j2         ✍️ rewritten
 │   └── master_index.html.j2  🟦 conference picker
 ├── docs/                     ✍️ formal reference notes, numbered
-├── surveys/                  ✍️ topic surveys over the log (survey.py; results git-ignored)
+├── surveys/                  ✍️ private companion repo (topic surveys, literature reviews); git-ignored here
 ├── scratch/                  ✍️ dated ad-hoc findings
 ├── userdata/annotations.json ✏️ YI'S DATA — never regenerate, only merge
 ├── output/<id>/{json,csv}/   generated dataset (git-ignored)

@@ -39,7 +39,7 @@
       <div class="card">
         <h2><a href="{{ s.report }}">{{ s.title }}</a></h2>
         {% if s.reviews %}<div class="meta">Literature review:
-          {% for level, page in s.reviews.items() %}{% set lv = level.split('-', 1) %}<a href="{{ page }}"><b>{{ lv[0] | capitalize }}</b>{% if lv | length > 1 %} ({{ lv[1] }}){% endif %}</a>{% if not loop.last %} · {% endif %}{% endfor %}{# focused reviews: mid-xo-less -> Mid (xo-less)  [c] #}
+          {% for level, page in s.reviews.items() %}{% set lv = level.split('-', 1) %}<a href="{{ page }}"><b>{{ lv[0] | capitalize }}</b>{% if lv | length > 1 %} ({{ lv[1] }}){% endif %}</a>{% if not loop.last %} · {% endif %}{% endfor %}{# focused reviews: mid-<slug> -> Mid (<slug>)  [c] #}
         </div>{% endif %}
         <div class="meta">
           Run {{ s.candidates_run or "?" }} · dataset as of {{ s.dataset_as_of or "?" }} ·

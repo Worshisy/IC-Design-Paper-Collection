@@ -32,9 +32,8 @@ Thumbs.db
 .idea/
 .vscode/
 
-# topic surveys: work/ and out/ hold IEEE titles and abstracts (AGENTS rule 2)  [c]
-surveys/*/work/
-surveys/*/out/
+# Topic surveys and literature reviews: a separate private repo nested here (AGENTS §2)  [c]
+surveys/
 
 # Curated per-paper lists and copied programme text: dataset, not script (2026-11-02)  [c]
 data/session_overrides.tsv
