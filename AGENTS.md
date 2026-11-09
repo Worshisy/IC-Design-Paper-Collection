@@ -36,7 +36,8 @@ folder map is in [`README.md`](README.md#layout).
   and the scraper re-applies it on every write. Progress is in `ONGOING.md`.
 - **Viewer:** `serve.py --host 0.0.0.0 --port 18817` runs under `pythonw` from
   the Startup shortcut "Paper viewer (LAN 18817)", so it is reachable on the
-  home LAN. Marks save to `userdata/annotations.json`.
+  home LAN. Marks save to `userdata/annotations.json`; highlights and
+  comments on review pages (`/api/review-notes`) to `userdata/review_notes.json`.
 - **IEEE pacing** (`config.py`, `utils.RateLimiter`, verified 2026-11-01):
   - a random 1-5 s gap between requests (0.45-2.25 s for author lookups), with
     a new seed every hour;

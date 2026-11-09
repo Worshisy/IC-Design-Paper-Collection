@@ -23,6 +23,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict
+from urllib.parse import parse_qs, urlparse  # [c]
 
 from html_builder import annotations_path, write_annotations_seed
 from utils import load_json, save_json, setup_logging
@@ -65,10 +66,64 @@ def _merge_annotations(incoming: Dict[str, Any]) -> Dict[str, Any]:
     return stored
 
 
+def _review_notes_path() -> Path:
+    return annotations_path().parent / "review_notes.json"   # highlights and comments on review pages  # [c]
+
+
+def _merge_review_notes(page: str, incoming: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge one page's notes per note id, newest `updated` winning (removed notes stay as tombstones).  # [c]"""
+    path = _review_notes_path()
+    stored: Dict[str, Any] = {"version": 1, "pages": {}}
+    if path.exists():
+        try:
+            loaded = load_json(path)
+            if isinstance(loaded, dict) and isinstance(loaded.get("pages"), dict):
+                stored = loaded
+        except (OSError, ValueError) as exc:
+            logger.warning("Existing review notes unreadable, replacing: %s", exc)
+    notes = stored["pages"].setdefault(page, {})
+    for note_id, note in (incoming or {}).items():
+        if isinstance(note, dict) and (note_id not in notes or str(note.get("updated", "")) > str(notes[note_id].get("updated", ""))):
+            notes[note_id] = note
+    save_json(path, stored)
+    return notes
+
+
 class AnnotationHandler(SimpleHTTPRequestHandler):
-    """Static file server plus a single POST endpoint for marks."""
+    """Static file server plus POST endpoints for paper marks and review notes."""
+
+    def _send_json(self, obj: Any) -> None:  # [c]
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802 - review notes for one page: /api/review-notes?page=<file>  # [c]
+        url = urlparse(self.path)
+        if url.path.rstrip("/") != "/api/review-notes":
+            super().do_GET()
+            return
+        page = (parse_qs(url.query).get("page") or [""])[0]
+        stored = load_json(_review_notes_path()) if _review_notes_path().exists() else {}
+        self._send_json({"page": page, "notes": (stored.get("pages") or {}).get(page, {})})
 
     def do_POST(self) -> None:  # noqa: N802 - http.server naming
+        if self.path.rstrip("/") == "/api/review-notes":   # [c]
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                payload = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= MAX_BODY_BYTES else None
+            except (ValueError, UnicodeDecodeError):
+                payload = None
+            if not isinstance(payload, dict) or not isinstance(payload.get("page"), str) or not isinstance(payload.get("notes"), dict):
+                self.send_error(400, "Expected {page, notes}")
+                return
+            notes = _merge_review_notes(payload["page"], payload["notes"])
+            self._send_json({"ok": True, "count": sum(1 for n in notes.values() if not n.get("deleted"))})
+            logger.info("Saved review notes for %s (%d)", payload["page"], len(notes))
+            return
         if self.path.rstrip("/") != "/api/annotations":
             self.send_error(404, "Unknown endpoint")
             return
