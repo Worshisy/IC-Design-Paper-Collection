@@ -5,6 +5,10 @@ points; this file is an index. Created 2026-11-02 from the old `AGENTS.md`
 handoff log (full text in [`docs/07-history.md`](docs/07-history.md) §2) and
 the closed parts of `ONGOING.md`. Work up to 2026-11-02 is in 98aa16b.
 
+## 2026-11-09 · Review notes endpoint in the viewer   (opened 2026-11-09, owner sy-paper-log)
+Outcome: `serve.py` serves GET/POST `/api/review-notes`, so highlights and comments on review pages save to `userdata/review_notes.json` (merged per note, newest wins); the page script lives in the private repo (`surveys/review_notes.js`).
+Shipped: dff7e35 (local, push waits for Yi) · Results: AGENTS.md §2 Viewer · Follow-ups: Backlog push line
+
 ## 2026-11-05 · Literature reviews moved to a private companion repo   (opened 2026-11-05, owner sy-paper-log)
 Outcome: topic surveys and literature reviews now live in a private repo nested at `surveys/` (git-ignored); this repo's history was rewritten without them and force-pushed; their DONE entries moved there.
 Shipped: this commit, history rewrite (old 16bce73 is now 98aa16b) · Results: AGENTS.md §2, .gitignore · Follow-ups: none

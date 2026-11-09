@@ -4,6 +4,7 @@ Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
 ## Backlog
+- 3 local commits wait for Yi's word to push: 8ec7e31, 06cdde4, dff7e35 (2026-11-09).
 - Literature-review work is tracked in the private companion repo: `surveys/ONGOING.md` and `surveys/scratch/_resume-*.md` (2026-11-06).
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).
 - Session decisions for Yi: 5 yes/no items (RFIC 2006 placement, CICC 2018 drops, `_print_order`, A-SSCC calls, A-SSCC 2020 cross-listing) (parked; `scratch/parked-threads.md`).
