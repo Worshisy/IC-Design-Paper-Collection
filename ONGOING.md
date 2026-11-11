@@ -4,7 +4,7 @@ Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
 ## Backlog
-- TCAS-II record gap (found 2026-11-10): 2024 holds exactly 1,000 papers (2022: 1,020) and misses e.g. the tutorial at vol. 71 p. 1663 (Xplore 10342829); the search paging likely stops at 1,000 records. Check `scraper.py` paging and re-fetch the year only with Yi's go (IEEE rule 7).
+- Dropped tutorials (found 2026-11-10): the front-matter title pattern `tutorials?$` (`parser.py:267`, meant for programme entries) also drops journal papers titled "…: A Tutorial": 31 real papers with authors and abstracts are missing (TCAS-II 21, TCAS-I 6, TMTT 2, JSSC 1, CICC 1; e.g. JSSC 2000 "Oscillator phase noise: a tutorial", TCAS-II 2024 10342829). Fix needs Yi's go: narrow the rule, then `--reparse` the affected years from the record cache (no IEEE requests). List: `tutorial_drops.py` output in the Claude session scratchpad.
 - Local commits wait for Yi's word to push: `git log --oneline origin/main..HEAD` (the dff7e35 review-notes endpoint plus doc-only commits, 2026-11-09).
 - Literature-review work is tracked in the private companion repo: `surveys/ONGOING.md` and `surveys/scratch/_resume-*.md` (2026-11-06).
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).
