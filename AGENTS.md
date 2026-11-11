@@ -28,8 +28,8 @@ folder map is in [`README.md`](README.md#layout).
   commit and push after each finished task. Reviews never go into this
   public repo. (Yi, 2026-11-05)
 - **iCloud target:** `C:\Users\Yi Shen\iCloudDrive\IC_Design_Materials\Paper_Collection`.
-- **Dataset:** 275 year files and 62,634 search rows including Early Access
-  (`update_database.py`, 2026-11-01). Affiliations: 99.2% (2026-10-12). Every
+- **Dataset:** 275 year files and 62,664 search rows including Early Access
+  (`update_database.py --no-scrape`, 2026-11-10). Affiliations: 99.2% (2026-10-12). Every
   paper has an IEEE citation count (2026-10-22).
 - **Abstracts:** the search API cuts them at about 400 characters. Full text
   comes from `tools/restore_abstracts.py` into `cache/<id>/abstracts_full.json`,
@@ -115,6 +115,7 @@ order.
 34. Searches only saw the first 400 characters → the search API truncates abstracts → `tools/restore_abstracts.py`.
 35. Abstracts show `<sup xmlns:mml=…>`, `<tex>`, `<inline-formula>` → the document endpoint writes JATS/MathML markup → `textclean._strip_markup`, `tools/repair_abstract_markup.py`; only listed tag names are touched, since "BER<10⁻¹²" is real text.
 36. IEEE answers 418 to the whole IP for days → a run of about 46k requests at about 2/s, plus retries that hid early 418s → the pacing in §2, and stop instead of retrying.
+37. Journal tutorials were missing ("…: A Tutorial") → the programme-listing rule `tutorials?$` also matched papers → `_is_tutorial_paper` keeps records with authors and a real abstract; 31 restored on 2026-11-10.
 
 ## 5. Pointers
 

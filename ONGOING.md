@@ -4,7 +4,7 @@ Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
 ## Backlog
-- Dropped tutorials (found 2026-11-10): the front-matter title pattern `tutorials?$` (`parser.py:267`, meant for programme entries) also drops journal papers titled "…: A Tutorial": 31 real papers with authors and abstracts are missing (TCAS-II 21, TCAS-I 6, TMTT 2, JSSC 1, CICC 1; e.g. JSSC 2000 "Oscillator phase noise: a tutorial", TCAS-II 2024 10342829). Fix needs Yi's go: narrow the rule, then `--reparse` the affected years from the record cache (no IEEE requests). List: `tutorial_drops.py` output in the Claude session scratchpad.
+- CICC 2020 invited tutorial 9075916 ("Digital Correction of DAC Nonlinearity...: Invited tutorial") is still missing: the CICC programme layer does not place it, and a CICC `--reparse` renumbers 2021-2023 (308 papers), so CICC was left as it was (2026-11-10).
 - Local commits wait for Yi's word to push: `git log --oneline origin/main..HEAD` (the dff7e35 review-notes endpoint plus doc-only commits, 2026-11-09).
 - Literature-review work is tracked in the private companion repo: `surveys/ONGOING.md` and `surveys/scratch/_resume-*.md` (2026-11-06).
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).

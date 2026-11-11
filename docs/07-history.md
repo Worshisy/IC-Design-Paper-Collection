@@ -209,6 +209,28 @@ is here under the same number. Closed work is indexed in `../DONE.md`.
     MathJax. Only listed tag names are touched, because abstracts contain real
     "<" ("BER<10^-12"). `tools/repair_abstract_markup.py` re-cleans stored text.
 
+### Added 2026-11-10
+
+37. **A front-matter title rule deleted 31 real tutorial papers.** `SKIP_PATTERNS`
+    had `tutorials?$` for programme entries ("Tutorials", "ISSCC 2024
+    Tutorials"), with no check of the record, so every journal paper titled
+    "...: A Tutorial" or "...—A Tutorial" was dropped: TCAS-II 21, TCAS-I 6,
+    TMTT 2, JSSC 1, CICC 1 (e.g. JSSC 2000 "Oscillator phase noise: a
+    tutorial"). Titles ending "A Tutorial Brief" or "Review" survived, which hid
+    it. Found when Yi asked about TCAS-II 2024 p. 1663 (Xplore 10342829); TCAS-II
+    2024 then held 1,054 fetched records but 1,000 saved (46 front matter, 1
+    Early Access, 7 tutorials). Fix: `_is_tutorial_paper` lets a record with
+    authors and an abstract over 150 characters pass that one rule; the
+    tutorial-presentation abstracts are still caught by the abstract rules.
+    Dry run over every cached record: exactly the 31 change; 25 programme
+    listings stay out. A `--reparse` of the four journals added 30 (the CICC
+    2020 invited tutorial did not come back through the programme layer, and
+    the CICC reparse renumbered 308 papers of 2021-2023, so CICC was restored
+    from the backup). Journal paper numbers shift by position within the issue
+    that gained a tutorial (522 papers); nothing else changed. Abstracts and 12
+    affiliations of the restored papers were fetched through the Mac (Yi's
+    route for that task).
+
 ---
 
 ## 2. Handoff log

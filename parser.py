@@ -489,6 +489,19 @@ def _is_front_matter(title: str) -> bool:
     return False
 
 
+TUTORIAL_TITLE_RE = re.compile(r"\btutorials?$", re.IGNORECASE)   # same rule as in SKIP_PATTERNS  # [c]
+
+
+def _is_tutorial_paper(rec: Dict[str, Any], title: str) -> bool:
+    """A paper titled "...: A Tutorial" (TCAS, JSSC, TMTT): only the tutorial title rule hits, and it has authors and a real abstract.  # [c]"""
+    lower = title.lower().strip()
+    if not TUTORIAL_TITLE_RE.search(lower) or lower in SKIP_TITLES or any(lower.startswith(p) for p in SKIP_PREFIXES):
+        return False
+    if any(pat.search(lower) for pat in SKIP_PATTERNS if pat.pattern != TUTORIAL_TITLE_RE.pattern):
+        return False
+    return bool(rec.get("authors")) and len((rec.get("abstract") or "").strip()) > 150   # boilerplate abstracts are still caught below
+
+
 def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
     """
     Front-matter test with the abstract available.
@@ -505,7 +518,7 @@ def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
     if _parse_session_header(title) is not None:
         return False
 
-    if _is_front_matter(title):
+    if _is_front_matter(title) and not _is_tutorial_paper(rec, title):   # [c]
         return True
 
     # Front matter is paginated in roman numerals; a real paper never is.

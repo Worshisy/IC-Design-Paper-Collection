@@ -49,6 +49,11 @@ RECORD_CASES: list[tuple[dict, str, bool]] = [
     ({"authors": []}, "Mapping Techniques for Neural Accelerators", False),
     ({"authors": []}, "Scheduler-Aware Memory Controller", False),
     ({"authors": []}, "A 28nm Schedule-Aware DVFS Controller", False),
+    # Journal tutorials end in "tutorial" like programme listings do; 31 were dropped until 2026-11-10.  # [c]
+    ({"authors": [1, 1, 1], "abstract": "x" * 400}, "RFIC Reuse Techniques to Enable Ultra-Low-Power IoT: A Tutorial", False),  # [c]
+    ({"authors": [1, 1], "abstract": "x" * 400}, "Oscillator phase noise: a tutorial", False),  # [c]
+    ({"authors": [], "abstract": "Provides an abstract for each of the tutorial presentations and a brief biography."}, "Tutorials", True),  # [c]
+    ({"authors": [], "abstract": ""}, "ISSCC 2024 Tutorials", True),  # [c]
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -185,7 +190,7 @@ def sweep_stored_data(show_caught: int) -> None:
                     title = (paper.get("title") or "").strip()
                     # Pass the abstract too: IEEE boilerplate abstracts identify
                     # front matter that no title rule would catch.
-                    if _is_front_matter_record({"abstract": paper.get("abstract")}, title):
+                    if _is_front_matter_record({"abstract": paper.get("abstract"), "authors": paper.get("authors")}, title):   # authors too, as the parser has them  # [c]
                         removed += 1
                         caught[title] += 1
                     else:

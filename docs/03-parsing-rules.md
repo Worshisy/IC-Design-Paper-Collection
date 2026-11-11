@@ -29,6 +29,8 @@ Four signals, checked in order. The first three are title-only
 | `SKIP_PATTERNS` | Regex search | mastheads, `<ACRONYM> <YEAR> <front-matter noun>`, bracketed front matter, forums/panels/evening events, venue maps, committee listings, catalogue entries |
 | `FRONT_MATTER_ABSTRACTS` | Abstract prefix | IEEE's fixed boilerplate: *"Presents the title page of the proceedings record."*, *"The author index contains an entry for each author…"*, *"This page or pages intended for user notes."* |
 
+Exception (2026-11-10): a title ending in "tutorial" is a programme listing only when the record has no authors or no real abstract; journal papers titled "…: A Tutorial" are kept (`_is_tutorial_paper`, history pitfall 37).
+
 ### The abstract signal is the strongest one
 
 IEEE attaches fixed boilerplate abstracts to front matter, which identifies
