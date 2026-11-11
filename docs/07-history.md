@@ -212,7 +212,7 @@ is here under the same number. Closed work is indexed in `../DONE.md`.
 ### Added 2026-11-10
 
 37. **A front-matter title rule deleted 31 real tutorial papers.** `SKIP_PATTERNS`
-    had `tutorials?$` for programme entries ("Tutorials", "ISSCC 2024
+    had `\btutorials?$` for programme entries ("Tutorials", "ISSCC 2024
     Tutorials"), with no check of the record, so every journal paper titled
     "...: A Tutorial" or "...—A Tutorial" was dropped: TCAS-II 21, TCAS-I 6,
     TMTT 2, JSSC 1, CICC 1 (e.g. JSSC 2000 "Oscillator phase noise: a
@@ -230,6 +230,20 @@ is here under the same number. Closed work is indexed in `../DONE.md`.
     that gained a tutorial (522 papers); nothing else changed. Abstracts and 12
     affiliations of the restored papers were fetched through the Mac (Yi's
     route for that task).
+    Yi then asked whether reviews were covered too. A scan of every cached record
+    with authors and an abstract that the parser still drops (503) found three
+    more journal papers behind other programme rules: "50 Years of CORDIC"
+    (TCAS-I 2009), "50 years of RF and microwave sampling" and the MTT-S
+    50-year history (TMTT 2002/2003) behind `^\d{1,3}\s+years\s+of\b`, and a
+    TCAS-II 2021 "Tutorial: Design of ..." behind the `tutorial:` prefix and the
+    programme pattern. The exception now also excuses those rules for journal
+    records (`articleContentType == "Journals"`); a second reparse of TCAS-I,
+    TCAS-II and TMTT added exactly these 4. The rest of the 499 are editorials,
+    editor messages, special-issue introductions, and conference programme items
+    (ISSCC tutorial and short-course listings, forums, evening events, RFIC
+    workshops) that stay out of the log by design. The audit's `RECORD_CASES`
+    were never run until then; running them shows one old failure
+    ("Plenary Speaker 1: ...", not filtered), left for Yi.
 
 ---
 

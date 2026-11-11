@@ -6,7 +6,7 @@ handoff log (full text in [`docs/07-history.md`](docs/07-history.md) §2) and
 the closed parts of `ONGOING.md`. Work up to 2026-11-02 is in 98aa16b.
 
 ## 2026-11-10 · Tutorial papers restored   (opened 2026-11-10, owner sy-paper-log)
-Outcome: the front-matter rule `tutorials?$` had dropped 31 journal papers titled "...: A Tutorial"; `parser.py` keeps them now (`_is_tutorial_paper`), 30 restored by a journal `--reparse` with full abstracts and affiliations (fetched through the Mac), site rebuilt, iCloud synced; CICC restored from backup.
+Outcome: programme-listing title rules had dropped 35 papers (34 journal, 1 CICC) ("...: A Tutorial", "Tutorial: ...", "50 Years of ..."); `parser.py` keeps them now (`_is_tutorial_paper`), 34 restored by a journal `--reparse` with full abstracts and affiliations (fetched through the Mac), site rebuilt, iCloud synced; CICC restored from backup.
 Shipped: this commit (local; push waits for Yi) · Results: docs/07-history.md §1 item 37, AGENTS pitfall 37, docs/03 · Follow-ups: Backlog CICC 2020 line; tutorials page in the private repo
 
 ## 2026-11-09 · Review notes endpoint in the viewer   (opened 2026-11-09, owner sy-paper-log)

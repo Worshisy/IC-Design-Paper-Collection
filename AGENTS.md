@@ -115,7 +115,7 @@ order.
 34. Searches only saw the first 400 characters → the search API truncates abstracts → `tools/restore_abstracts.py`.
 35. Abstracts show `<sup xmlns:mml=…>`, `<tex>`, `<inline-formula>` → the document endpoint writes JATS/MathML markup → `textclean._strip_markup`, `tools/repair_abstract_markup.py`; only listed tag names are touched, since "BER<10⁻¹²" is real text.
 36. IEEE answers 418 to the whole IP for days → a run of about 46k requests at about 2/s, plus retries that hid early 418s → the pacing in §2, and stop instead of retrying.
-37. Journal tutorials were missing ("…: A Tutorial") → the programme-listing rule `tutorials?$` also matched papers → `_is_tutorial_paper` keeps records with authors and a real abstract; 31 restored on 2026-11-10.
+37. Journal tutorials and reviews were missing ("…: A Tutorial", "Tutorial: …", "50 Years of …") → programme-listing title rules also matched papers → `_is_tutorial_paper` keeps records with authors and a real abstract (the prefix and "years of" forms in journals only); 34 restored on 2026-11-10.
 
 ## 5. Pointers
 

@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from parser import _is_front_matter, _is_front_matter_record  # noqa: E402
+from config import CONFERENCES  # noqa: E402  # [c]
 
 # (record, title, must_be_filtered) - programme items are front matter only
 # when authorless, so these need the record, not just the title.
@@ -54,6 +55,9 @@ RECORD_CASES: list[tuple[dict, str, bool]] = [
     ({"authors": [1, 1], "abstract": "x" * 400}, "Oscillator phase noise: a tutorial", False),  # [c]
     ({"authors": [], "abstract": "Provides an abstract for each of the tutorial presentations and a brief biography."}, "Tutorials", True),  # [c]
     ({"authors": [], "abstract": ""}, "ISSCC 2024 Tutorials", True),  # [c]
+    ({"authors": [1], "abstract": "x" * 400, "articleContentType": "Journals"}, "Tutorial: Design of High-Speed Nano-Scale CMOS Mixed-Voltage Digital I/O Buffer", False),  # [c]
+    ({"authors": [1] * 5, "abstract": "x" * 400, "articleContentType": "Journals"}, "50 Years of CORDIC: Algorithms, Architectures, and Applications", False),  # [c]
+    ({"authors": [1], "abstract": "x" * 400, "articleContentType": "Conferences"}, "Tutorial: Integrated LC Oscillators", True),  # [c] ISSCC tutorial listing, not a paper
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -157,10 +161,16 @@ def run_unit_cases() -> int:
         if got != should_filter:
             failures += 1
             print(f"  FAIL  filtered={got!s:5s} expected={should_filter!s:5s} | {title[:78]}")
+    for rec, title, should_filter in RECORD_CASES:   # record-level cases were defined but never run before 2026-11-10  # [c]
+        got = _is_front_matter_record(rec, title)
+        if got != should_filter:
+            failures += 1
+            print(f"  FAIL  record filtered={got!s:5s} expected={should_filter!s:5s} | {title[:70]}")
+    n = len(CASES) + len(RECORD_CASES)   # [c]
     if failures:
-        print(f"\n{failures} of {len(CASES)} unit cases FAILED.")
+        print(f"\n{failures} of {n} unit cases FAILED.")
     else:
-        print(f"All {len(CASES)} unit cases pass.")
+        print(f"All {n} unit cases pass ({len(CASES)} title, {len(RECORD_CASES)} record).")
     return failures
 
 
@@ -178,6 +188,7 @@ def sweep_stored_data(show_caught: int) -> None:
         if not json_dir.is_dir():
             continue
         removed = kept = 0
+        ctype = "Journals" if CONFERENCES.get(source_dir.name, {}).get("is_journal") else "Conferences"   # the parser sees IEEE's content type  # [c]
         for path in sorted(json_dir.glob("*.json")):
             if not re.fullmatch(r"\d{4}", path.stem):
                 continue
@@ -190,7 +201,7 @@ def sweep_stored_data(show_caught: int) -> None:
                     title = (paper.get("title") or "").strip()
                     # Pass the abstract too: IEEE boilerplate abstracts identify
                     # front matter that no title rule would catch.
-                    if _is_front_matter_record({"abstract": paper.get("abstract"), "authors": paper.get("authors")}, title):   # authors too, as the parser has them  # [c]
+                    if _is_front_matter_record({"abstract": paper.get("abstract"), "authors": paper.get("authors"), "articleContentType": ctype}, title):   # as the parser has them  # [c]
                         removed += 1
                         caught[title] += 1
                     else:

@@ -492,14 +492,26 @@ def _is_front_matter(title: str) -> bool:
 TUTORIAL_TITLE_RE = re.compile(r"\btutorials?$", re.IGNORECASE)   # same rule as in SKIP_PATTERNS  # [c]
 
 
+JOURNAL_PAPER_PREFIXES = ("tutorial:",)                              # journal "Tutorial: ..." papers  # [c]
+JOURNAL_PAPER_PATTERNS = (r"^\d{1,3}\s+years\s+of\b",              # journal reviews "50 Years of CORDIC"  # [c]
+                          r"^(?:forum|evening\s+event|social\s+event|panel|panel\s+discussion|short\s+course|tutorial)\s*\d*\s*:")   # "Tutorial: ..." also hits this programme rule  # [c]
+
+
 def _is_tutorial_paper(rec: Dict[str, Any], title: str) -> bool:
-    """A paper titled "...: A Tutorial" (TCAS, JSSC, TMTT): only the tutorial title rule hits, and it has authors and a real abstract.  # [c]"""
+    """A paper that only programme-entry title rules hit: "...: A Tutorial" anywhere; in journals also "Tutorial: ..." and "50 Years of ...". Needs authors and a real abstract.  # [c]"""
+    if not rec.get("authors") or len((rec.get("abstract") or "").strip()) <= 150:   # boilerplate abstracts are still caught below
+        return False
     lower = title.lower().strip()
-    if not TUTORIAL_TITLE_RE.search(lower) or lower in SKIP_TITLES or any(lower.startswith(p) for p in SKIP_PREFIXES):
+    if lower in SKIP_TITLES:
         return False
-    if any(pat.search(lower) for pat in SKIP_PATTERNS if pat.pattern != TUTORIAL_TITLE_RE.pattern):
+    journal = rec.get("articleContentType") == "Journals"
+    ok_prefixes = JOURNAL_PAPER_PREFIXES if journal else ()
+    ok_patterns = (TUTORIAL_TITLE_RE.pattern,) + (JOURNAL_PAPER_PATTERNS if journal else ())
+    hit_prefixes = [p for p in SKIP_PREFIXES if lower.startswith(p)]
+    hit_patterns = [pat.pattern for pat in SKIP_PATTERNS if pat.search(lower)]
+    if not hit_prefixes and not hit_patterns:
         return False
-    return bool(rec.get("authors")) and len((rec.get("abstract") or "").strip()) > 150   # boilerplate abstracts are still caught below
+    return all(p in ok_prefixes for p in hit_prefixes) and all(p in ok_patterns for p in hit_patterns)
 
 
 def _is_front_matter_record(rec: Dict[str, Any], title: str) -> bool:
