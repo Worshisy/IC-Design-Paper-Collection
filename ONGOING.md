@@ -4,6 +4,7 @@ Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
 ## Backlog
+- TCAS-II record gap (found 2026-11-10): 2024 holds exactly 1,000 papers (2022: 1,020) and misses e.g. the tutorial at vol. 71 p. 1663 (Xplore 10342829); the search paging likely stops at 1,000 records. Check `scraper.py` paging and re-fetch the year only with Yi's go (IEEE rule 7).
 - Local commits wait for Yi's word to push: `git log --oneline origin/main..HEAD` (the dff7e35 review-notes endpoint plus doc-only commits, 2026-11-09).
 - Literature-review work is tracked in the private companion repo: `surveys/ONGOING.md` and `surveys/scratch/_resume-*.md` (2026-11-06).
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).
