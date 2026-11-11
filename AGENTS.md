@@ -71,6 +71,9 @@ folder map is in [`README.md`](README.md#layout).
    at once, and no captcha passing. Routing through another machine's IP
    (the Mac mini tunnel) only when Yi starts or approves it for that run.
    (2026-11-01)
+   Route when approved (used 2026-11-10): `ssh -f -N -D 127.0.0.1:18080 yishenys-macmini`,
+   then `HTTPS_PROXY=socks5h://127.0.0.1:18080` for the tool; check the exit IP
+   (api.ipify.org) first, and stop the ssh process afterwards.
 8. **Mark code edits `# [c]`**; Yi strips them after review.
 
 ## 4. Pitfalls (symptom → cause → fix)
