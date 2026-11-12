@@ -435,7 +435,8 @@ def build_studies_index(site_root: Path) -> int:  # [c]
         ensure_dir(site_root / "studies")
         shutil.copy2(meta_path.parent / page, site_root / "studies" / page)
         if (meta_path.parent / "fig").is_dir():
-            shutil.copytree(meta_path.parent / "fig", site_root / "studies" / "fig", dirs_exist_ok=True)
+            shutil.copytree(meta_path.parent / "fig", site_root / "studies" / "fig" / meta_path.parent.parent.name,
+                            dirs_exist_ok=True)   # fig/<slug>/, as the page links it (same layout as surveys)  # [c]
         metas.append({**meta, "page": page})
     if not metas:
         return 0
