@@ -43,6 +43,13 @@ CONFERENCES: Dict[str, Dict[str, Any]] = {
         "is_journal": True,
         "fixed_punumber": "8011414",
     },
+    "ojsscs": {  # [c] Yi 2026-11-12: IEEE Open Journal of the Solid-State Circuits Society (from 2021)
+        "name": "OJ-SSCS",
+        "search_term": "Open Journal of the Solid-State Circuits Society",
+        "title_contains": "open journal of the solid-state circuits society",
+        "is_journal": True,
+        "fixed_punumber": "8782712",
+    },
     "tcas1": {
         "name": "TCAS-I",
         "search_term": "TCAS-I",

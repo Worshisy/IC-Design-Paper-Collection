@@ -3,6 +3,11 @@
 Open threads, rewritten in place (`/Workflow:workspace-bootstrap`). A closed
 thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 
+## Thread: OJ-SSCS added as a source   (owner: Claude log_paper session, updated 2026-11-12)
+Status: config entry `ojsscs` (punumber 8782712, journal, 2021 on); scrape + affiliations + full abstracts running from the PC (Yi: "if u still fail in IEEE, use mac").
+Done when: output/ojsscs year files, site rebuilt with the new source, iCloud synced, docs say 12 sources; public push on Yi's word.
+Running: background task bfpeg91jt on this PC (scratchpad ojsscs.sh: main.py scrape 2021-2026 → affiliations → restore_abstracts).
+
 ## Backlog
 - Local commits wait for Yi's word to push (2026-11-10 evening): `git log --oneline origin/main..HEAD` (Backlog note on conference tutorials; AGENTS rule 7 Mac tunnel recipe). No thread open; the session's threads closed in DONE.md here and in `surveys/DONE.md`.
 - Audit `RECORD_CASES` now run (2026-11-10): "Plenary Speaker 1: Wireless spectrum challenges" (authorless) is expected filtered but the parser keeps it, also before today; fix `PROGRAMME_TITLE_RE` or drop the case (Yi).
