@@ -32,6 +32,7 @@ A journal normally keeps one publication number, so the year comes from the
 |---|---|---|
 | JSSC | `4` | — |
 | SSCL | `8011414` | — (starts 2018) |
+| OJ-SSCS | `8782712` | — (starts 2021; added 2026-11-12) |
 | TCAS-I | `8919` | `81` for 2000–2003 |
 | TCAS-II | `8920` | `82` for 2000–2003 |
 | TMTT | `22` | — |
@@ -90,6 +91,7 @@ all** — half a year on disk is worse than a stale one.
 | **ESSCIRC** | 2000-2019, 2021- | ⚠ printed programme only | **There is no 2020.** The 46th edition (Grenoble) was called off for COVID and only a virtual educational event ran, so no proceedings exist: 2019 is the 45th, 2021 the 47th, and an article search restricted to 2020 returns zero records. Merged with ESSDERC in 2024 and renamed ESSERC. |
 | **A-SSCC** | 2005–2025 | ❌ none; all 21 years come back from a printed programme | Started in 2005, so `first_year` is 2005 rather than 2000. Xplore answers three different names for it (see below). 2020 is small for a reason: of the 62 papers its programme prints, **21 were published in IEEE Solid-State Circuits Letters instead of the proceedings** and are in this corpus under SSCL 2020, so the A-SSCC 2020 page shows 41 and some sessions look short (session 13 prints four papers and holds one). Xplore's 49 records for the year are complete, not a paging failure. **Its programme is published a different way almost every year** — see "Where A-SSCC's programme lives" below. No paper is unassigned. |
 | **JSSC** | 2000– | n/a — issues | Grouped as `"Vol. 61, Issue 3"`. Has Early Access. |
+| **OJ-SSCS** | 2021– | n/a — open-access journal | IEEE Open Journal of the Solid-State Circuits Society, added on Yi's request (2026-11-12): 187 papers 2021-2026 at the first scrape (fetched through the Mac tunnel; the PC was refused with HTTP 418). |
 | **SSCL** | 2018– | n/a — issues, then volume | Published discrete monthly issues in 2018–2019 (`"Vol. 1, Issue 3"`), then moved to continuous publication: from 2020 records carry `issue: null`, so a whole year is one group named `"Vol. 9"`. Both shapes are correct. Has Early Access. |
 | **TCAS-I** | 2000– | n/a — issues | Renamed in 2004 ("Fundamental Theory and Applications" → "Regular Papers"), so 2000–2003 come from publication `81`. The many masthead spellings are why filtering is pattern-based. |
 | **TCAS-II** | 2000– | n/a — issues | As above ("Analog and Digital Signal Processing" → "Express Briefs"), 2000–2003 from publication `82`. |

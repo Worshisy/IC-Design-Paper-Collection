@@ -8,8 +8,8 @@ The old gotcha stories and the handoff log moved verbatim to
 
 ## 1. What this is
 
-A scraper and static viewer for IEEE Xplore paper metadata from 11 sources
-(6 conferences, 5 journals). It produces JSON/CSV and a browsable offline
+A scraper and static viewer for IEEE Xplore paper metadata from 12 sources
+(6 conferences, 6 journals; OJ-SSCS added 2026-11-12). It produces JSON/CSV and a browsable offline
 site. The code travels through GitHub and the dataset through iCloud. The
 folder map is in [`README.md`](README.md#layout).
 
@@ -28,8 +28,8 @@ folder map is in [`README.md`](README.md#layout).
   commit and push after each finished task. Reviews never go into this
   public repo. (Yi, 2026-11-05)
 - **iCloud target:** `C:\Users\Yi Shen\iCloudDrive\IC_Design_Materials\Paper_Collection`.
-- **Dataset:** 275 year files and 62,664 search rows including Early Access
-  (`update_database.py --no-scrape`, 2026-11-10). Affiliations: 99.2% (2026-10-12). Every
+- **Dataset:** 62,874 search rows including Early Access, 12 sources
+  (`update_database.py --no-scrape`, 2026-11-12). Affiliations: 99.2% (2026-10-12). Every
   paper has an IEEE citation count (2026-10-22).
 - **Abstracts:** the search API cuts them at about 400 characters. Full text
   comes from `tools/restore_abstracts.py` into `cache/<id>/abstracts_full.json`,

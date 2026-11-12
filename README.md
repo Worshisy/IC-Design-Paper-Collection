@@ -5,8 +5,8 @@
 > ✍️ README authored by Claude (2026-09-20). File-level authorship is marked
 > in [`AGENTS.md`](AGENTS.md).
 
-Scrapes IEEE Xplore paper metadata for **11 sources** (6 conferences,
-5 journals), exports JSON/CSV, and builds a fast offline HTML viewer with
+Scrapes IEEE Xplore paper metadata for **12 sources** (6 conferences,
+6 journals), exports JSON/CSV, and builds a fast offline HTML viewer with
 search, author affiliations on hover, and your own likes / marks / notes.
 
 ---

@@ -5,6 +5,10 @@ points; this file is an index. Created 2026-11-02 from the old `AGENTS.md`
 handoff log (full text in [`docs/07-history.md`](docs/07-history.md) §2) and
 the closed parts of `ONGOING.md`. Work up to 2026-11-02 is in 98aa16b.
 
+## 2026-11-12 · OJ-SSCS added as a source   (opened 2026-11-12, owner sy-paper-log)
+Outcome: IEEE Open Journal of the SSCS (punumber 8782712) is the 12th source: 187 papers 2021-2026 with affiliations and full abstracts, fetched through the Mac tunnel (the PC got HTTP 418); site rebuilt (62,874 search rows), iCloud synced; dropped records checked (all front matter).
+Shipped: 9a61b2b, this commit · Results: docs/02, AGENTS §1-2, pitfall 38 · Follow-ups: none
+
 ## 2026-11-10 · Tutorial papers restored   (opened 2026-11-10, owner sy-paper-log)
 Outcome: programme-listing title rules had dropped 35 papers (34 journal, 1 CICC) ("...: A Tutorial", "Tutorial: ...", "50 Years of ..."); `parser.py` keeps them now (`_is_tutorial_paper`), 34 restored by a journal `--reparse` with full abstracts and affiliations (fetched through the Mac), site rebuilt, iCloud synced; CICC restored from backup.
 Shipped: this commit (local; push waits for Yi) · Results: docs/07-history.md §1 item 37, AGENTS pitfall 37, docs/03 · Follow-ups: Backlog CICC 2020 line; tutorials page in the private repo
