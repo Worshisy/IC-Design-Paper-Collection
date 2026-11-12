@@ -6,7 +6,7 @@ thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 ## Thread: OJ-SSCS added as a source   (owner: Claude log_paper session, updated 2026-11-12)
 Status: config pushed (9a61b2b). The PC run got HTTP 418 for every year (IEEE refusing the PC IP) and was stopped; rerun through the Mac tunnel (one test search: 200, 29 records for 2021).
 Done when: output/ojsscs year files, site rebuilt with the new source, iCloud synced, docs say 12 sources; public push on Yi's word.
-Running: background task b47abqzui on this PC through the Mac SOCKS tunnel (ssh -D 127.0.0.1:18080 yishenys-macmini; close it after): scrape 2021-2026 → affiliations → restore_abstracts.
+Running: b47abqzui through the Mac tunnel: scrape done 13:46 (2021-2026), affiliations and abstracts in progress; also the Opus CTAT re-check of the ulp-vref study (private repo). Pointers: scratch/_resume-ojsscs.md
 
 ## Backlog
 - Local commits wait for Yi's word to push (2026-11-10 evening): `git log --oneline origin/main..HEAD` (Backlog note on conference tutorials; AGENTS rule 7 Mac tunnel recipe). No thread open; the session's threads closed in DONE.md here and in `surveys/DONE.md`.
