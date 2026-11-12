@@ -380,7 +380,8 @@ def build_master_index(site_root: Path, conference_ids: List[str]) -> None:
         if cid in CONFERENCES
     ]
     n_surveys = build_surveys_index(site_root)  # [c]
-    html = template.render(conferences=conferences, n_surveys=n_surveys)
+    n_studies = build_studies_index(site_root)  # [c] paper studies (Yi, 2026-11-12)
+    html = template.render(conferences=conferences, n_surveys=n_surveys, n_studies=n_studies)
     out_path = site_root / "index.html"
     out_path.write_text(html, encoding="utf-8")
     logger.info("Wrote master index to %s", out_path)
@@ -416,6 +417,45 @@ def build_surveys_index(site_root: Path) -> int:  # [c]
     return len(metas)
 
 
+
+
+def build_studies_index(site_root: Path) -> int:  # [c]
+    """Copy each paper study (surveys/studies/<slug>/out/) into site/studies/ and write its index (Yi, 2026-11-12)."""
+
+    import html as _html
+    import json
+    import shutil
+
+    metas = []
+    for meta_path in sorted((_project_root() / "surveys" / "studies").glob("*/out/meta.json")):
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        page = (meta.get("reviews") or {}).get("study")
+        if not page or not (meta_path.parent / page).exists():
+            continue
+        ensure_dir(site_root / "studies")
+        shutil.copy2(meta_path.parent / page, site_root / "studies" / page)
+        if (meta_path.parent / "fig").is_dir():
+            shutil.copytree(meta_path.parent / "fig", site_root / "studies" / "fig", dirs_exist_ok=True)
+        metas.append({**meta, "page": page})
+    if not metas:
+        return 0
+    metas.sort(key=lambda m: m.get("date", ""), reverse=True)
+    cards = "".join(
+        f'<li><a href="{_html.escape(m["page"])}"><b>{_html.escape(m.get("title", m["page"]))}</b></a>'
+        f'<br><span class="meta">Key paper: {_html.escape(m.get("key", ""))} · {_html.escape(m.get("date", ""))}</span>'
+        f'<br>{_html.escape(m.get("summary", ""))}</li>' for m in metas)
+    page_html = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                 '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Paper studies</title>'
+                 '<style>:root{--bg:#fff;--fg:#1a1a1a;--mute:#666;--link:#0b57d0}'
+                 '@media (prefers-color-scheme:dark){:root{--bg:#141414;--fg:#e6e6e6;--mute:#9a9a9a;--link:#8ab4f8}}'
+                 'body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,sans-serif;max-width:900px;margin:0 auto;padding:16px}'
+                 'a{color:var(--link)} .meta{color:var(--mute)} li{margin:0 0 1em}</style></head><body>'
+                 '<p class="meta"><a href="../index.html">← home</a> · <a href="../surveys/index.html">Topic surveys</a></p>'
+                 '<h1>Paper studies</h1><p class="meta">One key paper read carefully per study, with a few works around it.</p>'
+                 f'<ul style="list-style:none;padding:0">{cards}</ul></body></html>')
+    (site_root / "studies" / "index.html").write_text(page_html, encoding="utf-8")
+    logger.info("Wrote %d paper stud(ies) to %s", len(metas), site_root / "studies")
+    return len(metas)
 
 
 def _affiliation_entry(paper: Dict[str, Any]) -> Optional[Dict[str, Any]]:

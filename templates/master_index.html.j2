@@ -51,6 +51,9 @@
         {% if n_surveys %}{# [c] #}
         <li><a class="conf-link" href="surveys/index.html">Topic surveys ({{ n_surveys }})</a></li>
         {% endif %}
+        {% if n_studies %}{# [c] #}
+        <li><a class="conf-link" href="studies/index.html">Paper studies ({{ n_studies }})</a></li>
+        {% endif %}
       </ul>
       <ul>
         {% for c in conferences %}
