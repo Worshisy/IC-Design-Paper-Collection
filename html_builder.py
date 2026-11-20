@@ -381,7 +381,12 @@ def build_master_index(site_root: Path, conference_ids: List[str]) -> None:
     ]
     n_surveys = build_surveys_index(site_root)  # [c]
     n_studies = build_studies_index(site_root)  # [c] paper studies (Yi, 2026-11-12)
-    html = template.render(conferences=conferences, n_surveys=n_surveys, n_studies=n_studies)
+    import json  # [c]
+    tut_meta = _project_root() / "surveys" / "tutorials" / "out" / "meta.json"  # [c] main-page link (Yi, 2026-11-20)
+    n_tutorials = (json.loads(tut_meta.read_text(encoding="utf-8")).get("included", 0)  # [c]
+                   if tut_meta.exists() and (site_root / "surveys" / "tutorials.html").exists() else 0)
+    html = template.render(conferences=conferences, n_surveys=n_surveys, n_studies=n_studies,
+                           n_tutorials=n_tutorials)  # [c]
     out_path = site_root / "index.html"
     out_path.write_text(html, encoding="utf-8")
     logger.info("Wrote master index to %s", out_path)
@@ -407,6 +412,8 @@ def build_surveys_index(site_root: Path) -> int:  # [c]
         if (meta_path.parent / "fig").is_dir():             # paper figures embedded in Mid+ reviews  [c]
             shutil.copytree(meta_path.parent / "fig", site_root / "surveys" / "fig" / meta_path.parent.parent.name,
                             dirs_exist_ok=True)                 # one folder per topic: W ids repeat across topics  [c]
+        if meta.get("topic") == "tutorials":   # [c] linked from the main page, not a card here (Yi, 2026-11-20)
+            continue
         metas.append(meta)
     if not metas:
         return 0
