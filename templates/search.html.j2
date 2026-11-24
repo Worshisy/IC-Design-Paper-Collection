@@ -305,7 +305,7 @@ body.clamp-abs .cell-abstract {
         /* A shard entry is { u: [affiliation, ...], m: [index per author] }:
            the column shows the unique list, the tooltip follows m back to the
            author being hovered. */
-        const affilEntry = row => (AFFILS[row.s] || {})[row.i] || null;
+        const affilEntry = row => row.ae || (AFFILS[row.s] || {})[row.i] || null;  /* ae: Advance Program rows carry theirs */
         const affilOf = row => {
           const entry = affilEntry(row);
           return entry ? entry.u.join("; ") : "";
@@ -679,6 +679,12 @@ body.clamp-abs .cell-abstract {
             div.appendChild(document.createTextNode(row.p || ""));
           } else if (key === "title") {
             div.className = "cell-title";
+            if (row.ap) {  /* placeholder from the Advance Program */
+              const tag = document.createElement("span");
+              tag.className = "ap-tag";
+              tag.textContent = "Advance Program";
+              div.appendChild(tag);
+            }
             if (row.u) {
               const a = document.createElement("a");
               a.href = row.u; a.target = "_blank"; a.rel = "noopener";

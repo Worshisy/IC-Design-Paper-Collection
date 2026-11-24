@@ -31,6 +31,13 @@ folder map is in [`README.md`](README.md#layout).
 - **Dataset:** 62,874 search rows including Early Access, 12 sources
   (`update_database.py --no-scrape`, 2026-11-12). Affiliations: 99.2% (2026-10-12). Every
   paper has an IEEE citation count (2026-10-22).
+- **ISSCC 2027 (placeholder):** 282 papers in 39 sessions from the Advance Program alone
+  (draft 2026-11-23; `tools/import_advance_program.py` on `cache/isscc_ap/ap.txt`, run 2026-11-24),
+  every record `source: "advance_program"`, no abstracts and no Xplore links; session 26 (Late
+  Breaking) and paper 16.2's authors are "to come" in the program. The site shows an "Advance
+  Program" label and links each title to its page in the program PDF. The full search index then
+  held 63,156 rows (`update_database.py --no-scrape`, 2026-11-24). A real scrape of 2027 replaces it
+  (pitfall 39). (Yi, 2026-11-24)
 - **Abstracts:** the search API cuts them at about 400 characters. Full text
   comes from `tools/restore_abstracts.py` into `cache/<id>/abstracts_full.json`,
   and the scraper re-applies it on every write. Progress is in `ONGOING.md`.
@@ -120,6 +127,7 @@ order.
 36. IEEE answers 418 to the whole IP for days → a run of about 46k requests at about 2/s, plus retries that hid early 418s → the pacing in §2, and stop instead of retrying.
 37. Journal tutorials and reviews were missing ("…: A Tutorial", "Tutorial: …", "50 Years of …") → programme-listing title rules also matched papers → `_is_tutorial_paper` keeps records with authors and a real abstract (the prefix and "years of" forms in journals only); 34 restored on 2026-11-10.
 38. A new scrape sat for 1.5 h with nothing saved (2026-11-12) → IEEE answered 418 to the PC, the client retried with long pauses, and `| tail` hid every line → before a long IEEE job send one request with the same client (418 → Mac route at once), log to a file, and read it within minutes and before reporting the job as running.
+39. A 2027 scrape would keep or skip the Advance Program year (placeholders have no `article_number`, so `keep_articles` cannot see them) → `scrape_year` treats an all-`advance_program` year file as not yet scraped and `_drop_advance_program_papers` removes every `source == "advance_program"` paper and logs the count; regression check `tools/check_advance_program_replace.py` (no network). After the first real scrape, drop the "Advance Program" state line above.
 
 ## 5. Pointers
 

@@ -96,6 +96,8 @@ log_paper/
 │   ├── audit_session_contents.py  ✍️ do a session's papers fit its name?
 │   ├── audit_device_tracks.py     ✍️ is the track split complete and live?
 │   ├── backfill_affiliations.py   ✍️ resumable affiliation fetcher
+│   ├── import_advance_program.py  ✍️ conference Advance Program text -> placeholder year file (ISSCC 2027)
+│   ├── check_advance_program_replace.py ✍️ no-network check that a real scrape replaces those placeholders
 │   ├── restore_abstracts.py       ✍️ resumable full-abstract fetcher
 │   ├── repair_abstract_markup.py  ✍️ re-cleans JATS/MathML markup in stored abstracts
 │   └── refresh_citations.py       ✍️ IEEE citation counts, all years

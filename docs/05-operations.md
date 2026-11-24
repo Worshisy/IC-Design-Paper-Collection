@@ -160,6 +160,20 @@ random 55-65 min of requests. Two more guards cover long runs:
   `--max-pauses` failed tests (default 4) it saves its progress and exits
   with code 3. Re-run it later to resume.
 
+## A year from the Advance Program (ISSCC 2027)
+
+Before IEEE Xplore has a conference's papers, the printed Advance Program can stand in:
+`pdftotext -layout` the PDF to `cache/isscc_ap/ap.txt`, then
+`D:\anaconda3\python.exe tools/import_advance_program.py` writes `output/isscc/json/<year>.json`
+(titles, authors, affiliations, session names; no abstracts) and prints its checks (papers per
+session against the program's own numbering, unresolved superscripts, 5 random papers). Every
+paper carries `source: "advance_program"` and a `url` into the program PDF (`#page=N`); the year
+carries `source` and `program_date`. The viewer labels these rows "Advance Program" and adds a
+note on the year page. A real scrape of the year (`update_database.py`, no `--no-scrape`) replaces the
+file wholesale: `scrape_year` ignores the resume-skip for such a year and
+`_drop_advance_program_papers` logs how many placeholders it replaced. Check without network:
+`tools/check_advance_program_replace.py`.
+
 ## Running the tools directly
 
 The `python` on PATH here is 3.9 and **cannot** run this project (it needs

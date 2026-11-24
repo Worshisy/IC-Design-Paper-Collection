@@ -29,6 +29,8 @@ structure changes.
 | `templates/_styles.css.j2` | `docs/04-viewer-and-marks.md` (layout table) | Breakpoints or the density/clamp behaviour change. |
 | `templates/_scripts.js.j2` | `docs/04-viewer-and-marks.md` | Mark/like/note behaviour, storage keys, or the save path change. |
 | `templates/year.html.j2`, `templates/index.html.j2` | `docs/04-viewer-and-marks.md` | Columns, controls or filters change. |
+| `tools/import_advance_program.py` | `README.md` (map), `AGENTS.md` §2 (ISSCC 2027 state) and pitfall 39, `docs/05-operations.md` (Advance Program year) | The program layout rules, the record keys or `source` marker, or the program URL/date change. |
+| `tools/check_advance_program_replace.py`, `scraper.py` (`ADVANCE_PROGRAM_SOURCE`, `_drop_advance_program_papers`, `_is_advance_program_year`) | `AGENTS.md` pitfall 39, `docs/05-operations.md` | How a scrape treats a placeholder year changes; re-run the check. |
 | `tools/refresh_citations.py` | `docs/05-operations.md`, `docs/04-viewer-and-marks.md` | Which fields it copies, where the fetch date is stored, or how a year is skipped. |
 | `update_database.py` | `docs/05-operations.md` | Step order, default year window, CLI flags or the iCloud sync rules change. |
 | `update.bat` | `docs/05-operations.md`, `README.md` | Flags or the interpreter selection change. |

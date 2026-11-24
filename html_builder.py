@@ -79,7 +79,8 @@ def _flatten_papers(year_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "authors": paper.get("authors", []),
                 "affiliations": paper.get("affiliations", []),
                 "article_number": paper.get("article_number") or "",
-                "paper_url": paper.get("paper_url") or "",
+                "paper_url": paper.get("paper_url") or paper.get("url") or "",  # [c] Advance Program rows link the program PDF
+                "source": paper.get("source") or "",  # [c]
                 "doi": paper.get("doi"),
                 "displayed_paper_number": paper.get("displayed_paper_number"),
                 "citation_count": paper.get("citation_count"),  # [c]
@@ -134,6 +135,8 @@ def build_year_page(
         total_papers=len(rows),
         rows=rows,
         sessions=session_overview,
+        advance_program=year_data.get("source") == "advance_program",  # [c]
+        program_date=year_data.get("program_date") or "",  # [c]
     )
 
     out_path = output_dir / f"year_{year}.html"
@@ -249,7 +252,8 @@ def build_html_for_year_range(
                     "au": "; ".join(paper.get("authors", [])),
                     "af": paper.get("affiliations", []),
                     "id": paper.get("article_number") or "",
-                    "url": paper.get("paper_url") or "",
+                    "url": paper.get("paper_url") or paper.get("url") or "",
+                    **({"ap": 1} if paper.get("source") == "advance_program" else {}),  # [c] placeholder from the Advance Program
                 })
 
     # Optional journal-level Early Access page (parallel to years).
@@ -600,9 +604,14 @@ def build_global_search(site_root: Path, conference_ids: List[str]) -> None:
                         "n": session.get("session_name", ""),
                         "c": session.get("session_code", ""),
                         "p": paper.get("paper_number", ""),
-                        "u": paper.get("paper_url") or "",
+                        "u": paper.get("paper_url") or paper.get("url") or "",
                         "k": paper.get("citation_count"),  # [c]
                     })
+                    if paper.get("source") == "advance_program":  # [c] no article id: affiliations ride on the record
+                        records[-1]["ap"] = 1
+                        inline = _affiliation_entry(paper)
+                        if inline:
+                            records[-1]["ae"] = inline
                     abstract = (paper.get("abstract") or "").strip()
                     if abstract and article:
                         per_source[article] = abstract

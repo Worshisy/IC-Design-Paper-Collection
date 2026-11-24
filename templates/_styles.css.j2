@@ -194,6 +194,9 @@ body {
 
 .cell-num { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
 .cell-num .cites { display: block; font-size: 0.7rem; }  /* [c] */
+.cell-num .ap-tag, .ap-tag { display: block; font-size: 0.65rem; color: var(--muted); border: 1px solid var(--border, currentColor); border-radius: 3px; padding: 0 0.25rem; margin-top: 0.15rem; width: fit-content; opacity: 0.85; }  /* [c] */
+.ap-tag[data-label]::after { content: attr(data-label); }  /* [c] CSS, so the text filter skips it */
+.ap-note { font-size: 0.85rem; color: var(--muted); }  /* [c] */
 .cell-num .cites::after { content: attr(data-cites) " cit."; }  /* [c] CSS, so the text filter skips it */
 .cell-title { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 /* A rendered formula is an SVG sized in ex units, so it ignores the column

@@ -36,6 +36,10 @@
         {% endif %}
       </div>
 
+      {% if advance_program %}
+      <div class="panel ap-note">Titles and authors from the Advance Program (draft {{ program_date }}); abstracts and Xplore links come with the proceedings.</div>
+      {% endif %}
+
       <div class="panel controls">
         <div class="control-group" style="flex:1 1 18rem">
           <input id="search-input" class="search-input" type="search"
@@ -81,6 +85,7 @@
              data-authors="{{ row.authors | join('; ') }}"
              data-affils="{{ row.affiliations | join('|') }}">
           <div class="cell-num"><span class="num">{{ row.paper_number }}</span>{# [c] #}
+            {% if row.source == "advance_program" %}<span class="ap-tag" data-label="Advance Program" title="Title and authors from the Advance Program; the abstract and the Xplore link come with the proceedings"></span>{% endif %}
             {% if row.citation_count is not none %}<span class="cites" title="IEEE Xplore citations" data-cites="{{ row.citation_count }}"></span>{% endif %}</div>
           <div class="cell-title">
             {% if row.paper_url %}<a href="{{ row.paper_url }}" target="_blank" rel="noopener">{{ row.title }}</a>

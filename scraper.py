@@ -15,6 +15,10 @@ from utils import HttpError, load_json, retrying_get, retrying_post, save_json
 
 logger = logging.getLogger(__name__)
 
+# Papers imported from a conference's Advance Program (tools/import_advance_program.py)
+# are placeholders: a real scrape of that year replaces every one of them.  # [c]
+ADVANCE_PROGRAM_SOURCE = "advance_program"
+
 
 class Scraper:
     """
@@ -312,6 +316,51 @@ class Scraper:
         year_data["sessions"] = keep_sessions
         return early_papers
 
+    def _is_advance_program_year(self, path: Path) -> bool:  # [c]
+        """True when the year file on disk holds only Advance Program placeholders."""
+
+        try:
+            data = load_json(path)
+        except (OSError, ValueError):
+            return False
+        papers = [p for s in data.get("sessions", []) for p in s.get("papers", [])]
+        return bool(papers) and all(p.get("source") == ADVANCE_PROGRAM_SOURCE for p in papers)
+
+    def _drop_advance_program_papers(self, year: int, year_data: Dict[str, Any]) -> int:  # [c]
+        """
+        Make sure no Advance Program placeholder survives a real scrape.
+
+        The year is rebuilt from IEEE's records, so placeholders on disk vanish with the
+        write; this also strips any that reached ``year_data`` (and logs the count of
+        placeholders the file on disk held, so the swap is visible in the log).
+        """
+
+        on_disk = 0
+        path = self._year_json_path(year)
+        if path.exists():
+            try:
+                previous = load_json(path)
+            except (OSError, ValueError):
+                previous = {}
+            on_disk = sum(
+                1 for s in previous.get("sessions", []) for p in s.get("papers", [])
+                if p.get("source") == ADVANCE_PROGRAM_SOURCE
+            )
+        dropped = 0
+        for session in year_data.get("sessions", []):
+            kept = [p for p in session.get("papers", []) if p.get("source") != ADVANCE_PROGRAM_SOURCE]
+            dropped += len(session.get("papers", [])) - len(kept)
+            session["papers"] = kept
+        year_data["sessions"] = [s for s in year_data.get("sessions", []) if s.get("papers")]
+        for key in ("source", "program_date"):
+            year_data.pop(key, None)
+        if on_disk or dropped:
+            logger.info(
+                "[%s] Advance Program placeholders dropped: %d on disk replaced, %d removed from the fresh data",
+                year, on_disk, dropped,
+            )
+        return on_disk + dropped
+
     def scrape_year(self, year: int, publication_number: str) -> Dict[str, Any]:
         """
         Scrape all papers for a single conference year via the search API.
@@ -327,7 +376,8 @@ class Scraper:
         errors_path = self._year_error_path(year)
 
         # Resumability: if a JSON already exists, skip unless overwrite.
-        if year_path.exists() and not self.overwrite:
+        # An Advance Program year is a placeholder, never a finished scrape.  # [c]
+        if year_path.exists() and not self.overwrite and not self._is_advance_program_year(year_path):
             logger.info("[%s] Loading existing JSON from %s", year, year_path)
             return load_json(year_path)
 
@@ -396,6 +446,7 @@ class Scraper:
         self._restore_session_layout(
             year, year_data, keep_articles=fetched - previous_articles
         )
+        self._drop_advance_program_papers(year, year_data)  # [c]
         self._apply_track_filter(year, year_data)
         self._apply_session_overrides(year, year_data)
         self._restore_full_abstracts(year_data)  # [c]
@@ -544,6 +595,8 @@ class Scraper:
             if session.get("session_name") == "Unassigned":
                 continue
             for paper in session.get("papers", []):
+                if paper.get("source") == ADVANCE_PROGRAM_SOURCE:  # [c] placeholders carry no layout
+                    continue
                 key = str(paper.get("article_number") or "")
                 if key:
                     layout[key] = (

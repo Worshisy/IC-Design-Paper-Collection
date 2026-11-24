@@ -14,6 +14,7 @@ Open `site/index.html` and it works from disk.
 | `site/index.html` | Conference picker. |
 | `site/<id>/index.html` | Year cards (**newest first**, Early Access ahead of them) + search across every paper of that source. |
 | `site/<id>/year_<year>.html` | One year, grouped by session, with a filter box. |
+| `site/<id>/year_<year>.html` (Advance Program year) | Papers imported from a conference's Advance Program carry `source: "advance_program"`: no article id (so no marks), the title links to the program PDF page, a small "Advance Program" label sits under the paper number, and a note line under the summary names the program draft date. Search rows get `ap: 1` and an inline affiliation entry `ae`; the label shows in the global search and the source index too. See `docs/05-operations.md`. |
 | `site/<id>/early_access.html` | Journals only: Early Access papers, grouped by year. |
 | `site/search.html` | Search across **every** source at once (see below). |
 | `site/surveys/index.html` | Topic surveys: one card per survey (run date, dataset date, years, sources, counts), each linking into its report's sub-areas and its literature reviews (`<topic>-review-<level>.html`; paper figures in `site/surveys/fig/<topic>/`). Linked from `site/index.html` once a survey exists; built from `surveys/<topic>/out/`, which only the private companion repo provides (without it the page and the link are absent). |

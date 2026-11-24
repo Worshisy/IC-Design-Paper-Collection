@@ -176,6 +176,12 @@
           const num = document.createElement("div");
           num.className = "cell-num";
           num.innerHTML = `<a href="year_${p.y}.html">${p.y}</a><br>${p.pn || ""}`;
+          if (p.ap) {  /* placeholder from the Advance Program */
+            const tag = document.createElement("span");
+            tag.className = "ap-tag";
+            tag.textContent = "Advance Program";
+            num.appendChild(tag);
+          }
 
           const title = document.createElement("div");
           title.className = "cell-title";
