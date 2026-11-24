@@ -8,7 +8,7 @@ thread moves to `DONE.md`. History is in git and `docs/07-history.md`.
 - Audit `RECORD_CASES` now run (2026-11-10): "Plenary Speaker 1: Wireless spectrum challenges" (authorless) is expected filtered but the parser keeps it, also before today; fix `PROGRAMME_TITLE_RE` or drop the case (Yi).
 - Conference teaching items (ISSCC tutorial and short-course listings, forums, RFIC workshops) stay out of the log and off the tutorials page: Yi 2026-11-10, "conf tutorial is diff from journal".
 - CICC 2020 invited tutorial 9075916 ("Digital Correction of DAC Nonlinearity...: Invited tutorial") is still missing: the CICC programme layer does not place it, and a CICC `--reparse` renumbers 2021-2023 (308 papers), so CICC was left as it was (2026-11-10).
-- Literature-review work is tracked in the private companion repo: `surveys/ONGOING.md` and `surveys/scratch/_resume-*.md` (2026-11-06).
+- Literature-review work is tracked in the private companion repo: `surveys/ONGOING.md` and `surveys/scratch/_resume-*.md` (2026-11-06). A paper-study Q&A thread is open there (2026-11-12; its local working note was last updated 2026-11-13 after the overnight run).
 - Session-contents findings: 28 open from `tools/audit_session_contents.py` (parked 2026-11-04; `scratch/parked-threads.md`).
 - Session decisions for Yi: 5 yes/no items (RFIC 2006 placement, CICC 2018 drops, `_print_order`, A-SSCC calls, A-SSCC 2020 cross-listing) (parked; `scratch/parked-threads.md`).
 - Session known gaps: ESSCIRC 2005 programme, in-session order, A-SSCC 2024 codes, unchecked parser years, `# [c]` review (parked; `scratch/parked-threads.md`).
